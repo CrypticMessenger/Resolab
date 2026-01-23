@@ -1,0 +1,1507 @@
+"use client";
+
+import React, { useEffect, useRef, useState } from 'react';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+import { SourceObject } from '@/lib/audio/SourceObject';
+import { SourceData, SourceType, EditorState } from '@/types/spaudio';
+import { subscriptionManager, UserTier } from '@/lib/subscription';
+
+import Tooltip from './spaudio/Tooltip';
+import GlobalControls from './spaudio/GlobalControls';
+import EditorSidebar from './spaudio/EditorSidebar';
+import Timeline from './spaudio/Timeline';
+import MediaLibraryModal from './spaudio/MediaLibraryModal';
+import AuthButton from './auth/AuthButton';
+import { useTheme } from "next-themes";
+import { createClient } from '@/utils/supabase/client';
+import ThinkingPanel from './ThinkingPanel';
+import AutoFoleyModal from './AutoFoleyModal';
+import { generateSpatialSceneAction, analyzeVideoAction } from '@/actions/gemini';
+
+
+export default function SpatialAudioEditor({ projectId }: { projectId?: string }) {
+    const supabase = createClient();
+
+    // --- Refs ---
+    const containerRef = useRef<HTMLDivElement>(null);
+    const audioCtxRef = useRef<AudioContext | null>(null);
+    const mainSceneGainRef = useRef<GainNode | null>(null);
+    const reverbNodeRef = useRef<ConvolverNode | null>(null);
+    const reverbGainRef = useRef<GainNode | null>(null);
+
+    const sceneRef = useRef<THREE.Scene | null>(null);
+    const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+    const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+    const sourcesRef = useRef<SourceObject[]>([]);
+    const raycasterRef = useRef(new THREE.Raycaster());
+    const mouseRef = useRef(new THREE.Vector2());
+    const animationFrameRef = useRef<number>(0);
+
+    // Recording Refs
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recordedChunksRef = useRef<Blob[]>([]);
+    const recordingStreamDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+    const wavProcessorRef = useRef<ScriptProcessorNode | null>(null);
+    const wavLeftRef = useRef<Float32Array[]>([]);
+    const wavRightRef = useRef<Float32Array[]>([]);
+    const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // --- State ---
+    const [sourcesList, setSourcesList] = useState<SourceData[]>([]);
+    const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
+    const [tooltip, setTooltip] = useState<{ visible: boolean; x: number; y: number; text: string; color: string }>({
+        visible: false, x: 0, y: 0, text: '', color: '#fff'
+    });
+    const [isPro, setIsPro] = useState(true);
+    const [isRecording, setIsRecording] = useState(false);
+    const [aiStatus, setAiStatus] = useState('');
+    const [promptInput, setPromptInput] = useState('');
+    const [showLibrary, setShowLibrary] = useState(false);
+
+    // Account Usage State
+    const [accountUsage, setAccountUsage] = useState({ usedBytes: 0, fileCount: 0 });
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+    // Use static limits from manager
+    const limits = subscriptionManager.getLimits();
+
+    // Fetch Account Usage
+    const fetchAccountUsage = async () => {
+        // Mock usage for demo
+        setAccountUsage({ usedBytes: 0, fileCount: 0 });
+    };
+
+    useEffect(() => {
+        fetchAccountUsage();
+    }, []);
+
+    // Timeline State
+    const [currentTime, setCurrentTime] = useState(0);
+    const [totalDuration, setTotalDuration] = useState(30); // Default 30s
+    const [isPlaying, setIsPlaying] = useState(false);
+
+    // Refs for Animation Loop (to avoid stale closures)
+    const currentTimeRef = useRef(0);
+    const isPlayingRef = useRef(false);
+    const lastFrameTimeRef = useRef<number>(0);
+
+    // Sync refs with state
+    useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
+    useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+
+    // Editor UI State
+    const [editorState, setEditorState] = useState<EditorState>({
+        name: '',
+        x: 0, y: 0, z: 0,
+        vol: 100,
+        sourceType: 'none',
+        isPlaying: false,
+        timelineStart: 0,
+        timelineDuration: 10
+    });
+
+    const { theme } = useTheme();
+
+    // Update Scene Background on Theme Change
+    // useEffect(() => {
+    //     if (sceneRef.current) {
+    //         sceneRef.current.background = new THREE.Color(theme === 'light' ? 0xffffff : 0x050505);
+    //     }
+    // }, [theme]);
+
+    // --- Constants ---
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
+
+    // --- Initialization ---
+    // --- Persistence & Auth ---
+    // --- Persistence & Auth ---
+    useEffect(() => {
+        // Force PRO state for demo
+        setIsPro(true);
+    }, []);
+
+    useEffect(() => {
+        if (!projectId) return;
+
+        const fetchProject = async () => {
+            const { data, error } = await supabase
+                .from('projects')
+                .select('data')
+                .eq('id', projectId)
+                .single();
+
+            if (data && (data as any).data) {
+                console.log("Loading project data...", (data as any).data);
+                loadProject((data as any).data);
+            } else if (error) {
+                console.error("Error loading project:", error);
+            }
+        };
+
+        fetchProject();
+    }, [projectId]);
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+
+        // 1. Three.js Setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050505);
+        sceneRef.current = scene;
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 15, 15);
+        cameraRef.current = camera;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        containerRef.current.appendChild(renderer.domElement);
+        rendererRef.current = renderer;
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // Lights & Helpers
+        scene.add(new THREE.AmbientLight(0x404040));
+        const dl = new THREE.DirectionalLight(0xffffff, 1);
+        dl.position.set(10, 20, 10); dl.castShadow = true; scene.add(dl);
+        // Grid Helper Color Adjustment
+        const gridColor = 0x333333;
+        const gridCenterColor = 0x111111;
+        scene.add(new THREE.GridHelper(100, 100, gridCenterColor, gridColor));
+
+        const axesHelper = new THREE.AxesHelper(5);
+        axesHelper.position.y = 0.01;
+        scene.add(axesHelper);
+
+        // Head Group
+        const headGroup = new THREE.Group();
+
+        // Main Head Sphere
+        const headGeo = new THREE.SphereGeometry(0.6, 32, 32);
+        const headMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3, metalness: 0.5 });
+        const headMesh = new THREE.Mesh(headGeo, headMat);
+        headGroup.add(headMesh);
+
+        // Headphones (Torus)
+        const headphoneGeo = new THREE.TorusGeometry(0.3, 0.1, 16, 32);
+        const headphoneMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, emissive: 0x1d4ed8, emissiveIntensity: 0.5 });
+
+        const leftEar = new THREE.Mesh(headphoneGeo, headphoneMat);
+        leftEar.position.set(-0.6, 0, 0);
+        leftEar.rotation.y = Math.PI / 2;
+        headGroup.add(leftEar);
+
+        const rightEar = new THREE.Mesh(headphoneGeo, headphoneMat);
+        rightEar.position.set(0.6, 0, 0);
+        rightEar.rotation.y = Math.PI / 2;
+        headGroup.add(rightEar);
+
+        // Headband (Arc)
+        const headbandGeo = new THREE.TorusGeometry(0.65, 0.05, 16, 32, Math.PI);
+        const headband = new THREE.Mesh(headbandGeo, headphoneMat);
+        headband.rotation.z = Math.PI / 2; // Arc over top
+        headGroup.add(headband);
+
+        // Visor (Direction Indicator)
+        const visorGeo = new THREE.BoxGeometry(0.8, 0.2, 0.4);
+        const visorMat = new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 0.5 });
+        const visor = new THREE.Mesh(visorGeo, visorMat);
+        visor.position.set(0, 0.1, 0.5); // Front of face
+        headGroup.add(visor);
+
+        scene.add(headGroup);
+
+        // 2. Event Listeners
+        const onResize = () => {
+            if (cameraRef.current && rendererRef.current) {
+                cameraRef.current.aspect = window.innerWidth / window.innerHeight;
+                cameraRef.current.updateProjectionMatrix();
+                rendererRef.current.setSize(window.innerWidth, window.innerHeight);
+            }
+        };
+        window.addEventListener('resize', onResize);
+
+        const onMouseMove = (event: MouseEvent) => {
+            mouseRef.current.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouseRef.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            setTooltip(prev => ({ ...prev, x: event.clientX, y: event.clientY - 20 }));
+        };
+        window.addEventListener('mousemove', onMouseMove);
+
+        // 3. Animation Loop
+        const animate = () => {
+            animationFrameRef.current = requestAnimationFrame(animate);
+            const now = Date.now();
+
+            // Raycasting
+            if (cameraRef.current && sceneRef.current) {
+                raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
+                const intersectObjects = sourcesRef.current.map(s => s.mesh);
+                const intersects = raycasterRef.current.intersectObjects(intersectObjects);
+
+                if (intersects.length > 0) {
+                    const hitObj = intersects[0].object;
+                    const source = sourcesRef.current.find(s => s.id === hitObj.userData.id);
+                    if (source) {
+                        setTooltip(prev => ({
+                            ...prev,
+                            visible: true,
+                            text: source.name,
+                            color: '#' + source.color.getHexString()
+                        }));
+                    }
+                } else {
+                    setTooltip(prev => ({ ...prev, visible: false }));
+                }
+            }
+
+            // Source Updates
+            sourcesRef.current.forEach(s => {
+                // Timeline Logic
+                if (isPlayingRef.current) {
+                    const t = currentTimeRef.current;
+                    const duration = s.timelineDuration || 10;
+                    const isActive = t >= s.timelineStart && t < s.timelineStart + duration;
+
+                    if (isActive && !s.isPlaying) {
+                        if (audioCtxRef.current) s.play(audioCtxRef.current, t - s.timelineStart);
+                    } else if (!isActive && s.isPlaying) {
+                        s.stop();
+                    }
+                }
+
+                // Automation
+                if (s.automationType !== 'none') {
+                    // Use Timeline Time if playing, otherwise use current time or preview time?
+                    // Actually, if we scrub, we want to see result.
+                    // If playing, use `currentTimeRef.current`.
+                    // If NOT playing, use `currentTime`.
+
+                    // Note: `currentTimeRef` is updated in animate loop for smooth playback, 
+                    // `currentTime` state is used for seeking/rendering ticks.
+
+                    if (typeof s.applyTrajectory === 'function') {
+                        const t = currentTimeRef.current;
+                        s.applyTrajectory(t);
+                    } else {
+                        // Fallback for HMR / Stale objects
+                        console.warn("applyTrajectory missing on source", s.id);
+                    }
+                }
+
+
+                // Visualizer
+                if (s.isPlaying && s.analyser && s.dataArray) {
+                    s.analyser.getByteFrequencyData(s.dataArray as any);
+                    let sum = 0; for (let i = 0; i < s.dataArray.length; i++) sum += s.dataArray[i];
+                    const avg = sum / s.dataArray.length;
+                    const scale = 1 + (avg / 50);
+                    s.mesh.scale.set(scale, scale, scale);
+                    // @ts-expect-error - emissiveIntensity exists on StandardMaterial
+                    s.mesh.material.emissiveIntensity = avg / 100;
+                }
+            });
+
+            // Timeline Increment
+            if (isPlayingRef.current) {
+                const delta = (now - lastFrameTimeRef.current) / 1000;
+                if (delta < 0.1) { // Prevent huge jumps
+                    const next = currentTimeRef.current + delta;
+
+                    // Calculate dynamic end time based on sources
+                    const maxSourceTime = sourcesRef.current.reduce((max, s) => {
+                        return Math.max(max, s.timelineStart + (s.timelineDuration || 10));
+                    }, 0);
+                    // Add a small buffer or ensure at least minimal playback
+                    const stopTime = Math.max(maxSourceTime, 2.0);
+
+                    if (next >= stopTime) {
+                        setIsPlaying(false);
+                        isPlayingRef.current = false; // Immediate update
+                        setCurrentTime(0);
+                        currentTimeRef.current = 0;
+                        sourcesRef.current.forEach(s => s.stop());
+                    } else {
+                        setCurrentTime(next);
+                        currentTimeRef.current = next;
+                    }
+                }
+            }
+            lastFrameTimeRef.current = now;
+
+            controls.update();
+            if (rendererRef.current && sceneRef.current && cameraRef.current) {
+                rendererRef.current.render(sceneRef.current, cameraRef.current);
+            }
+        };
+        animate();
+
+        // Initial Source only if new project
+        if (!projectId) {
+            createSource();
+        }
+
+        return () => {
+            window.removeEventListener('resize', onResize);
+            window.removeEventListener('mousemove', onMouseMove);
+            cancelAnimationFrame(animationFrameRef.current);
+            if (containerRef.current && rendererRef.current) {
+                containerRef.current.removeChild(rendererRef.current.domElement);
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [theme]); // Re-run init if theme changes to reset grid/bg properly, or we could just update props
+
+    // --- Load Project ---
+    useEffect(() => {
+        if (!projectId) return;
+
+        const fetchProject = async () => {
+            try {
+                const res = await fetch(`/api/projects/${projectId}`);
+                const json = await res.json();
+                if (json.project && json.project.data && Object.keys(json.project.data).length > 0) {
+                    // Small delay to ensure scene is ready
+                    setTimeout(() => loadProject(json.project.data), 100);
+                }
+            } catch (e) {
+                console.error("Failed to load project", e);
+            }
+        };
+        fetchProject();
+    }, [projectId]);
+
+    // --- Audio Logic ---
+    const initGlobalAudio = () => {
+        if (audioCtxRef.current) return;
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        const ctx = new AudioContext();
+        audioCtxRef.current = ctx;
+
+        const mainGain = ctx.createGain();
+        mainGain.connect(ctx.destination);
+        mainSceneGainRef.current = mainGain;
+
+        const reverb = ctx.createConvolver();
+        const revGain = ctx.createGain();
+        revGain.gain.value = 0.1;
+        reverb.connect(revGain);
+        revGain.connect(mainGain);
+        reverbNodeRef.current = reverb;
+        reverbGainRef.current = revGain;
+
+        // Impulse Response
+        const length = ctx.sampleRate * 2;
+        const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
+        for (let i = 0; i < length; i++) {
+            const decay = Math.pow(1 - i / length, 2);
+            impulse.getChannelData(0)[i] = (Math.random() * 2 - 1) * decay;
+            impulse.getChannelData(1)[i] = (Math.random() * 2 - 1) * decay;
+        }
+        reverb.buffer = impulse;
+    };
+
+    const syncSourceList = () => {
+
+        setSourcesList(sourcesRef.current.map(s => ({
+            id: s.id,
+            name: s.name,
+            color: '#' + s.color.getHexString(),
+            position: s.position,
+            volume: s.volume,
+            sourceType: s.sourceType,
+            isPlaying: s.isPlaying,
+            hasTrajectory: s.hasTrajectory,
+            timelineStart: s.timelineStart,
+            timelineDuration: s.timelineDuration || 10,
+            automationType: s.automationType,
+            automationParams: s.automationParams,
+            error: s.error
+        })));
+    };
+
+    const addSource = (sourceType: SourceType | 'generated' = 'none', x: number = 0, y: number = 0, z: number = 0, name?: string, fileUrlOverride?: string) => {
+        initGlobalAudio();
+
+        const id = Date.now().toString() + Math.random().toString().slice(2, 5);
+        const hue = Math.random() * 360;
+        const color = new THREE.Color(`hsl(${hue}, 100%, 50%)`);
+        const sourceName = name || `Source ${sourcesRef.current.length + 1}`;
+
+        const newSource = new SourceObject(id, sourceName, color);
+        newSource.position = { x, y, z };
+        // Update mesh position immediately
+        newSource.mesh.position.set(x, y, z);
+        newSource.targetMesh.position.set(x, y, z);
+        newSource.sourceType = sourceType === 'generated' ? 'generated' : sourceType as SourceType;
+
+        // Apply File URL Override (Virtual Wiring)
+        if (fileUrlOverride) {
+            newSource.fileUrl = fileUrlOverride;
+            newSource.audioElement.src = fileUrlOverride;
+            // If generated, we treat it as file for playback logic usually, or 'generated' specific buffer logic?
+            // For hackathon simplicity, we treat remote URLs as 'file' stream
+            if (sourceType === 'generated') newSource.sourceType = 'file';
+        }
+
+        if (audioCtxRef.current && mainSceneGainRef.current && reverbNodeRef.current) {
+            newSource.initAudio(audioCtxRef.current, mainSceneGainRef.current, reverbNodeRef.current);
+        }
+
+        sourcesRef.current.push(newSource);
+        if (sceneRef.current) {
+            sceneRef.current.add(newSource.mesh);
+            sceneRef.current.add(newSource.targetMesh);
+            sceneRef.current.add(newSource.trajectoryLine);
+        }
+
+        syncSourceList();
+        selectSource(id);
+    };
+
+    const createSource = () => addSource('none', 0, 0, 0);
+
+    const selectSource = (id: string) => {
+        setActiveSourceId(id);
+        const source = sourcesRef.current.find(s => s.id === id);
+        if (source) {
+            setEditorState({
+                name: source.name,
+                x: source.position.x,
+                y: source.position.y,
+                z: source.position.z,
+                vol: source.volume * 100,
+                sourceType: source.sourceType,
+                isPlaying: source.isPlaying,
+                timelineStart: source.timelineStart,
+                timelineDuration: source.timelineDuration ?? undefined,
+                automationType: source.automationType,
+                automationParams: source.automationParams
+            });
+        }
+    };
+
+
+
+    const updateActiveSource = (updates: Partial<EditorState>) => {
+        if (!activeSourceId) return;
+        const source = sourcesRef.current.find(s => s.id === activeSourceId);
+        if (!source) return;
+
+        if (updates.name !== undefined) source.name = updates.name;
+
+        // Handle Automation Updates
+        if (updates.automationType !== undefined) {
+            source.automationType = updates.automationType;
+            // Reset params if switching types? For now keep them or reset if needed.
+            // If switching to linear, maybe init target pos to current pos + offset?
+            if (source.automationType === 'linear' && !source.automationParams.targetPos) {
+                source.automationParams.targetPos = { ...source.position, z: source.position.z - 5 };
+            }
+            source.updateAutomation();
+            syncSourceList();
+        }
+        if (updates.automationParams !== undefined) {
+            source.automationParams = updates.automationParams;
+            source.updateAutomation();
+            // Don't necessarily sync list on every param change if dragging, but good for UI
+        }
+
+        if (updates.x !== undefined || updates.y !== undefined || updates.z !== undefined) {
+            // Manual move kills trajectory IF not in automation mode? 
+            // Actually, if we are in 'orbit' or 'linear', moving the source manually sets the START position.
+            // But trajectoryFunc overrides it every frame if playing or previewing.
+            // We should allow moving the "Anchor" / Start position.
+
+            // If dragging GHOST TARGET
+            if (updates.automationParams?.targetPos) {
+                // This path is triggered by the ghost drag logic below, passing updates.automationParams
+            } else {
+                source.updatePosition(
+                    updates.x ?? source.position.x,
+                    updates.y ?? source.position.y,
+                    updates.z ?? source.position.z
+                );
+                // If automated, re-apply trajectory immediately to reflect new base pos
+                if (source.automationType !== 'none') {
+                    source.updateAutomation(); // Update visuals
+                    if (typeof source.applyTrajectory === 'function') {
+                        source.applyTrajectory(currentTime); // Re-calc position
+                    }
+                }
+            }
+        }
+        if (updates.vol !== undefined) {
+            source.volume = updates.vol / 100;
+            if (source.gain) source.gain.gain.value = source.volume;
+        }
+
+        setEditorState(prev => ({ ...prev, ...updates }));
+        if (updates.name !== undefined) syncSourceList();
+    };
+
+    // Mouse Interaction for Draggable Targets
+    const isDraggingRef = useRef(false);
+    const dragTargetRef = useRef<{ id: string, isTarget: boolean } | null>(null);
+    const dragPlaneRef = useRef(new THREE.Plane());
+    const dragOffsetRef = useRef(new THREE.Vector3());
+
+    const onMouseDown = (event: React.MouseEvent) => {
+        if (!cameraRef.current || !sceneRef.current) return;
+
+        mouseRef.current.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouseRef.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
+
+        // Intersect Source Meshes + Target Meshes
+        const allMeshes = sourcesRef.current.flatMap(s => [s.mesh, s.targetMesh]);
+        // Filter visible ones
+        const visibleMeshes = allMeshes.filter(m => m.visible);
+
+        const intersects = raycasterRef.current.intersectObjects(visibleMeshes);
+
+        if (intersects.length > 0) {
+            const hit = intersects[0];
+            const object = hit.object;
+
+            if (event.button === 0) { // Left click
+                isDraggingRef.current = true;
+                dragTargetRef.current = { id: object.userData.id, isTarget: !!object.userData.isTarget };
+
+                // Select if not target (or even if target? implied source selection)
+                selectSource(object.userData.id);
+
+                // Setup Drag Plane
+                dragPlaneRef.current.setFromNormalAndCoplanarPoint(
+                    cameraRef.current.getWorldDirection(new THREE.Vector3()),
+                    hit.point
+                );
+
+                dragOffsetRef.current.copy(hit.point).sub(object.position);
+
+                // Disable orbit controls
+                // controls.enabled = false; // We need access to controls ref to disable
+            }
+        }
+    };
+
+    const onMouseUp = () => {
+        isDraggingRef.current = false;
+        dragTargetRef.current = null;
+    };
+
+    // Add Event Listeners for Mouse Down/Up to container
+    useEffect(() => {
+        const canvas = containerRef.current?.querySelector('canvas');
+        if (canvas) {
+            canvas.addEventListener('mousedown', onMouseDown as any);
+            window.addEventListener('mouseup', onMouseUp);
+        }
+        return () => {
+            if (canvas) canvas.removeEventListener('mousedown', onMouseDown as any);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+    }, []);
+
+    // Update onMouseMove to handle drag
+    useEffect(() => {
+        const onMouseMoveGlobal = (event: MouseEvent) => {
+            if (isDraggingRef.current && dragTargetRef.current && raycasterRef.current && cameraRef.current) {
+                mouseRef.current.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouseRef.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+                raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
+                const ray = raycasterRef.current.ray;
+                const targetPoint = new THREE.Vector3();
+                ray.intersectPlane(dragPlaneRef.current, targetPoint);
+
+                const newPos = targetPoint.sub(dragOffsetRef.current);
+
+                if (dragTargetRef.current.isTarget) {
+                    // Update Target Position
+                    const source = sourcesRef.current.find(s => s.id === dragTargetRef.current?.id);
+                    if (source) {
+                        const targetPos = { x: newPos.x, y: newPos.y, z: newPos.z };
+                        const newParams = { ...source.automationParams, targetPos };
+                        updateActiveSource({ automationParams: newParams });
+                    }
+                } else {
+                    // Update Source Position
+                    updateActiveSource({ x: newPos.x, y: newPos.y, z: newPos.z });
+                }
+            }
+        };
+        window.addEventListener('mousemove', onMouseMoveGlobal);
+        return () => window.removeEventListener('mousemove', onMouseMoveGlobal);
+    }, [activeSourceId]); // Re-bind if needed, or keep ref based. Ref based is better for perf.
+
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!activeSourceId || !e.target.files?.[0]) return;
+        const file = e.target.files[0];
+
+        const source = sourcesRef.current.find(s => s.id === activeSourceId);
+        if (!source) return;
+
+        // Set file size
+        source.fileSize = file.size;
+
+        // 1. Immediate local playback (Optimistic)
+        const localUrl = URL.createObjectURL(file);
+        source.audioElement.src = localUrl;
+        source.sourceType = 'file';
+
+        if (source.name.startsWith("Source ")) {
+            source.name = file.name.substring(0, 15);
+            updateActiveSource({ name: source.name });
+        }
+
+        updateActiveSource({ sourceType: 'file' });
+        if (audioCtxRef.current) source.play(audioCtxRef.current);
+        updateActiveSource({ isPlaying: true });
+        syncSourceList();
+
+        // 2. Upload to Supabase Storage (Global Path)
+        if (!currentUserId) {
+            console.error("No user ID found for upload");
+            return;
+        }
+
+        setAiStatus("Uploading file...");
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${currentUserId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+            const { data, error } = await supabase.storage
+                .from('audio-files')
+                .upload(fileName, file);
+
+            if (error) throw error;
+
+            // Increment Account Usage
+            await supabase.rpc('increment_storage', {
+                bytes: file.size,
+                file_count: 1
+            });
+            fetchAccountUsage(); // Sync
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('audio-files')
+                .getPublicUrl(fileName);
+
+            source.fileUrl = publicUrl;
+            console.log("File uploaded:", publicUrl);
+            setAiStatus("");
+        } catch (err) {
+            console.error("Upload failed:", err);
+            setAiStatus("Upload Failed");
+            // We don't stop playback, but warn user
+            alert("Failed to upload file to cloud. It will not be saved.");
+        }
+    };
+
+    const togglePlay = () => {
+        if (isPlaying) {
+            setIsPlaying(false);
+            isPlayingRef.current = false;
+            sourcesRef.current.forEach(s => s.stop());
+        } else {
+            setIsPlaying(true);
+            isPlayingRef.current = true;
+            lastFrameTimeRef.current = Date.now();
+        }
+    };
+
+    const handleSeek = (time: number) => {
+        setCurrentTime(time);
+        currentTimeRef.current = time;
+
+        if (!isPlaying) {
+            // Preview frame?
+            // For now just update time, user has to play to hear.
+        } else {
+            // If playing, we need to resync sources
+            sourcesRef.current.forEach(s => {
+                const isActive = time >= s.timelineStart &&
+                    (s.timelineDuration === null || time < s.timelineStart + s.timelineDuration);
+                if (isActive) {
+                    if (audioCtxRef.current) s.play(audioCtxRef.current, time - s.timelineStart);
+                } else {
+                    s.stop();
+                }
+            });
+        }
+    };
+
+    const handleUpdateSourceTimeline = (id: string, updates: { timelineStart?: number; timelineDuration?: number }) => {
+        const source = sourcesRef.current.find(s => s.id === id);
+        if (!source) return;
+
+        if (updates.timelineStart !== undefined) source.timelineStart = updates.timelineStart;
+        if (updates.timelineDuration !== undefined) source.timelineDuration = updates.timelineDuration;
+
+        // Update automation (e.g. Linear duration depends on this)
+        if (source.automationType !== 'none') source.updateAutomation();
+
+        syncSourceList();
+        if (activeSourceId === id) selectSource(id);
+    };
+
+
+
+    const stopMotion = () => {
+        if (!activeSourceId) return;
+        const source = sourcesRef.current.find(s => s.id === activeSourceId);
+        if (source) {
+            source.automationType = 'none';
+            // Reset to base position visually
+            if (typeof source.applyTrajectory === 'function') {
+                source.applyTrajectory(0);
+            }
+            syncSourceList();
+        }
+    };
+
+    const deleteSource = (id: string) => {
+        const sourceIndex = sourcesRef.current.findIndex(s => s.id === id);
+        if (sourceIndex === -1) return;
+
+        const source = sourcesRef.current[sourceIndex];
+
+        // Cleanup
+        if (sceneRef.current) {
+            sceneRef.current.remove(source.mesh);
+            sceneRef.current.remove(source.targetMesh);
+            sceneRef.current.remove(source.trajectoryLine);
+        }
+        source.stop();
+
+        // Remove from ref
+        sourcesRef.current.splice(sourceIndex, 1);
+
+        // Update state
+        syncSourceList();
+
+        // If active source was deleted, deselect
+        if (activeSourceId === id) {
+            setActiveSourceId(null);
+        }
+    };
+
+    const handleSelectLibraryFile = async (url: string, size: number, name: string) => {
+        if (!activeSourceId) return;
+
+        // Check limits (File count check skipped as we are assigning to existing source usually, 
+        // but if we were creating new source we would check. Here we assume assigning to active source).
+        // Actually, if active source wasn't a file before, it becomes one.
+
+        const currentTotalSizeMB = sourcesRef.current.reduce((acc, s) => acc + (s.fileSize || 0), 0) / (1024 * 1024);
+        const newFileSizeMB = size / (1024 * 1024);
+
+        // We reuse canUploadFile logic for project size check
+        // We reuse canUploadFile logic for project size check
+        const storageCheck = subscriptionManager.canUploadFile(currentTotalSizeMB, newFileSizeMB);
+        // Skipped storage check for demo
+
+        const source = sourcesRef.current.find(s => s.id === activeSourceId);
+        if (!source) return;
+
+        source.fileSize = size;
+        source.fileUrl = url;
+        source.sourceType = 'file';
+
+        // Update name if default
+        if (source.name.startsWith("Source ")) {
+            source.name = name.split('/').pop() || name;
+            updateActiveSource({ name: source.name });
+        }
+
+        // Load Audio
+        // Cache Busting: Ensure we don't load stale cache if file was deleted/re-uploaded
+        source.audioElement.crossOrigin = "anonymous";
+        source.audioElement.onerror = () => {
+            console.error("Failed to load audio file");
+            source.error = "missing"; // Set error state
+            syncSourceList();
+        };
+        source.audioElement.onloadeddata = () => {
+            source.error = undefined; // Clear error
+            syncSourceList();
+        };
+        source.audioElement.src = url + `?t=${Date.now()}`;
+        source.audioElement.load(); // Important for remote urls?
+
+        updateActiveSource({ sourceType: 'file' });
+
+        // Play
+        if (audioCtxRef.current) source.play(audioCtxRef.current);
+        updateActiveSource({ isPlaying: true });
+        syncSourceList();
+    };
+
+    const handleLibraryUploadNew = async (file: File) => {
+        if (!currentUserId) return;
+
+        // Check Account Limits
+        // Check Account Limits - Skipped for demo
+        const currentTotalSizeMB = accountUsage.usedBytes / (1024 * 1024);
+        const newFileSizeMB = file.size / (1024 * 1024);
+        const storageCheck = subscriptionManager.canUploadFile(currentTotalSizeMB, newFileSizeMB);
+        // Skipped storage check
+
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${currentUserId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+        const { data, error } = await supabase.storage
+            .from('audio-files')
+            .upload(fileName, file);
+
+        if (error) throw error;
+
+        // Increment Account Usage - Skipped for demo
+
+        fetchAccountUsage();
+    };
+
+    // --- Recording ---
+    const startRecording = async () => {
+        console.log("startRecording called");
+        // Switch to Offline Rendering
+
+        console.log("Starting offline rendering...");
+        setIsRecording(true);
+        setAiStatus("Rendering...");
+
+        try {
+            // Offline Context
+            const sampleRate = 44100;
+
+            // Calculate dynamic duration based on sources
+            const maxSourceTime = sourcesRef.current.reduce((max, s) => {
+                return Math.max(max, s.timelineStart + (s.timelineDuration || 10));
+            }, 0);
+            const exportDuration = Math.max(maxSourceTime, 2.0); // Minimum 2s
+
+            const length = sampleRate * exportDuration;
+            const offlineCtx = new OfflineAudioContext(2, length, sampleRate);
+
+            // Recreate Scene Graph in Offline Context
+            // This is complex because we need to clone the entire audio graph
+            // For MVP, we will just render sources that are 'file' or 'generated'
+
+            // Global Reverb
+            const mainGain = offlineCtx.createGain();
+            mainGain.connect(offlineCtx.destination);
+
+            const reverb = offlineCtx.createConvolver();
+            // ... (Load impulse response again or share buffer? Sharing buffer is tricky across contexts if not careful, but usually fine)
+            // Let's generate simple impulse again for offline
+            const impulseLen = sampleRate * 2;
+            const impulse = offlineCtx.createBuffer(2, impulseLen, sampleRate);
+            for (let i = 0; i < impulseLen; i++) {
+                const decay = Math.pow(1 - i / impulseLen, 2);
+                impulse.getChannelData(0)[i] = (Math.random() * 2 - 1) * decay;
+                impulse.getChannelData(1)[i] = (Math.random() * 2 - 1) * decay;
+            }
+            reverb.buffer = impulse;
+
+            const revGain = offlineCtx.createGain();
+            revGain.gain.value = 0.1;
+            reverb.connect(revGain);
+            revGain.connect(mainGain);
+
+            // Schedule Sources
+            // Schedule Sources
+            if (sourcesRef.current.length === 0) {
+                console.warn("No sources to render");
+                setAiStatus("No Sources");
+                setIsRecording(false);
+                return;
+            }
+
+            for (const s of sourcesRef.current) {
+                try {
+                    let audioBuffer: AudioBuffer | null = null;
+
+                    if (s.sourceType === 'file' && s.audioElement.src) {
+                        // Fetch buffer for file
+                        console.log(`Fetching source ${s.name}...`);
+                        const response = await fetch(s.audioElement.src);
+                        const arrayBuffer = await response.arrayBuffer();
+                        audioBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
+                    } else if (s.sourceType === 'generated' && s.buffer) {
+                        // Use existing buffer for generated sources
+                        console.log(`Using buffer for generated source ${s.name}...`);
+                        audioBuffer = s.buffer;
+                    }
+
+                    if (audioBuffer) {
+                        const sourceNode = offlineCtx.createBufferSource();
+                        sourceNode.buffer = audioBuffer;
+                        sourceNode.loop = true; // Generated sources loop, files might not? 
+                        // Actually files shouldn't loop by default in timeline unless specified.
+                        // But for now let's assume loop if it's a background track, or just play once.
+                        // Timeline logic usually implies play once per clip instance.
+                        sourceNode.loop = s.sourceType === 'generated';
+
+                        const panner = offlineCtx.createPanner();
+                        panner.panningModel = 'HRTF';
+                        panner.distanceModel = 'inverse';
+                        panner.setPosition(s.position.x, s.position.y, s.position.z);
+
+                        const gain = offlineCtx.createGain();
+                        gain.gain.value = s.volume;
+
+                        sourceNode.connect(panner);
+                        panner.connect(gain);
+                        gain.connect(mainGain);
+                        panner.connect(reverb);
+
+                        // Schedule
+                        const start = s.timelineStart;
+                        const duration = s.timelineDuration || (s.sourceType === 'generated' ? 10 : audioBuffer.duration);
+
+                        sourceNode.start(start);
+                        sourceNode.stop(start + duration);
+                    }
+                } catch (err) {
+                    console.error(`Failed to schedule source ${s.name}:`, err);
+                    // Continue with other sources instead of failing entirely
+                }
+            }
+
+            const renderedBuffer = await offlineCtx.startRendering();
+            setAiStatus("");
+            setIsRecording(false);
+
+            // Export to WAV
+            exportWav(renderedBuffer.getChannelData(0), renderedBuffer.getChannelData(1), sampleRate);
+            handleExportSuccess();
+
+        } catch (e) {
+            setIsRecording(false);
+        }
+    };
+
+    const handleExportSuccess = async () => {
+        // Increment export count in DB
+        // Increment export count in DB - Skipped for demo
+    };
+
+    const stopRecording = () => {
+        if (!isRecording) return;
+        setIsRecording(false);
+        if (recordingTimeoutRef.current) clearTimeout(recordingTimeoutRef.current);
+
+        if (isPro) {
+            // Finish WAV
+            if (wavProcessorRef.current && mainSceneGainRef.current) {
+                wavProcessorRef.current.disconnect();
+                mainSceneGainRef.current.disconnect(wavProcessorRef.current);
+            }
+            // Export WAV
+            const flatLeft = flattenArray(wavLeftRef.current);
+            const flatRight = flattenArray(wavRightRef.current);
+            exportWav(flatLeft, flatRight, audioCtxRef.current?.sampleRate || 44100);
+            handleExportSuccess();
+        } else {
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                mediaRecorderRef.current.stop();
+            }
+        }
+    };
+
+    const flattenArray = (arr: Float32Array[]) => {
+        const len = arr.reduce((acc, val) => acc + val.length, 0);
+        const res = new Float32Array(len);
+        let offset = 0;
+        for (const a of arr) { res.set(a, offset); offset += a.length; }
+        return res;
+    };
+
+    const downloadBlob = (blob: Blob, filename: string) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+    };
+
+    const exportWav = (left: Float32Array, right: Float32Array, sampleRate: number) => {
+        // Simple WAV encoder
+        const bufferLength = left.length * 2 * 2 + 44;
+        const buffer = new ArrayBuffer(bufferLength);
+        const view = new DataView(buffer);
+
+        const writeString = (offset: number, str: string) => {
+            for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+        };
+
+        writeString(0, 'RIFF');
+        view.setUint32(4, 36 + left.length * 4, true);
+        writeString(8, 'WAVE');
+        writeString(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, 2, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * 4, true);
+        view.setUint16(32, 4, true);
+        view.setUint16(34, 16, true);
+        writeString(36, 'data');
+        view.setUint32(40, left.length * 4, true);
+
+        let offset = 44;
+        for (let i = 0; i < left.length; i++) {
+            const sL = Math.max(-1, Math.min(1, left[i]));
+            const sR = Math.max(-1, Math.min(1, right[i]));
+            view.setInt16(offset, sL < 0 ? sL * 0x8000 : sL * 0x7FFF, true);
+            offset += 2;
+            view.setInt16(offset, sR < 0 ? sR * 0x8000 : sR * 0x7FFF, true);
+            offset += 2;
+        }
+
+        const blob = new Blob([view], { type: 'audio/wav' });
+        downloadBlob(blob, 'spatial_scene_pro.wav');
+    };
+
+    // --- Save / Load ---
+    const saveProject = async () => {
+        const data = {
+            sources: sourcesRef.current.map(s => ({
+                id: s.id,
+                name: s.name,
+                color: '#' + s.color.getHexString(),
+                position: s.position,
+                volume: s.volume,
+                timelineStart: s.timelineStart,
+                timelineDuration: s.timelineDuration,
+                automationType: s.automationType,
+                automationParams: s.automationParams,
+                sourceType: s.sourceType,
+                // We can't save audio buffers or elements easily, 
+                // so we rely on recreating them or just saving metadata for now.
+                // For MVP, we assume user re-uploads or we store file URLs if we had storage.
+                // Since we don't have storage for files yet, we just save the structure.
+                fileUrl: s.fileUrl // Save the cloud URL
+            })),
+            editorState
+        };
+
+        if (projectId) {
+            // LocalStorage Mock - Fire and Forget (Sync)
+            supabase
+                .from('projects')
+                .update({
+                    data: data,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', projectId);
+
+            console.log("Project saved successfully!");
+            alert("Project saved!");
+        } else {
+            // Fallback to file download if no project ID (shouldn't happen in dashboard flow)
+            const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+            downloadBlob(blob, 'spaudio-project.json');
+        }
+    };
+
+    const loadProject = (data: any) => {
+        // Ensure audio context exists before restoring sources
+        initGlobalAudio();
+
+        // Clear existing
+        sourcesRef.current.forEach(s => {
+            if (sceneRef.current) sceneRef.current.remove(s.mesh);
+            s.stop();
+        });
+        sourcesRef.current = [];
+
+        // Load new
+        if (data.sources) {
+            data.sources.forEach((sData: any) => {
+                const color = new THREE.Color(sData.color);
+                const s = new SourceObject(sData.id, sData.name, color);
+                // Use updatePosition to sync mesh and panner immediately
+                s.updatePosition(sData.position.x, sData.position.y, sData.position.z);
+
+                s.volume = sData.volume;
+                s.timelineStart = sData.timelineStart || 0;
+                s.timelineDuration = sData.timelineDuration;
+                s.sourceType = sData.sourceType || 'none';
+                s.automationType = sData.automationType || 'none';
+                s.automationParams = sData.automationParams || {};
+                // Recalculate trajectory
+                if (s.automationType !== 'none') s.updateAutomation();
+
+                // Restore audio from URL
+                // Restore audio from URL
+                if (s.sourceType === 'file' && s.fileUrl) {
+                    s.audioElement.crossOrigin = "anonymous";
+                    s.audioElement.onerror = (e) => {
+                        s.error = "missing";
+                        syncSourceList();
+                    };
+                    s.audioElement.onloadeddata = () => {
+                        s.error = undefined;
+                        syncSourceList();
+                    };
+                    const separator = s.fileUrl.includes('?') ? '&' : '?';
+                    s.audioElement.src = s.fileUrl + `${separator}t=${Date.now()}`;
+                    s.audioElement.load();
+                }
+
+                // Re-init audio - this should now always work since we called initGlobalAudio
+                if (audioCtxRef.current && mainSceneGainRef.current && reverbNodeRef.current) {
+                    s.initAudio(audioCtxRef.current, mainSceneGainRef.current, reverbNodeRef.current);
+                } else {
+                    console.error("Audio context not ready for", s.name);
+                }
+
+                if (sceneRef.current) {
+                    sceneRef.current.add(s.mesh);
+                    sceneRef.current.add(s.targetMesh);
+                    sceneRef.current.add(s.trajectoryLine);
+                }
+                sourcesRef.current.push(s);
+            });
+        }
+
+        if (data.editorState) {
+            setEditorState(data.editorState);
+        }
+
+        syncSourceList();
+    };
+
+
+
+
+    // ... (in component)
+
+    // --- AI "Wiring" / Logic Maps ---
+
+    // Mock Sound Library - In a real app, this would query a real asset database/CDN
+    const SOUND_LIBRARY: Record<string, string> = {
+        'footsteps': 'https://actions.google.com/sounds/v1/foley/footsteps_on_concrete.ogg',
+        'rain': 'https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg',
+        'wind': 'https://actions.google.com/sounds/v1/weather/wind_blowing_strong.ogg',
+        'traffic': 'https://actions.google.com/sounds/v1/transportation/traffic_highway_distant.ogg',
+        'bird': 'https://actions.google.com/sounds/v1/animals/sparrow_chirp.ogg',
+        'default': '/assets/audio/default_osc.mp3' // Fallback
+    };
+
+    const mapSemanticToAsset = (tag: string): string => {
+        // Simple fuzzy match or direct lookup
+        const lowerTag = tag.toLowerCase();
+        if (SOUND_LIBRARY[lowerTag]) return SOUND_LIBRARY[lowerTag];
+
+        // Fuzzy match keys
+        const match = Object.keys(SOUND_LIBRARY).find(k => lowerTag.includes(k));
+        return match ? SOUND_LIBRARY[match] : SOUND_LIBRARY['default'];
+    };
+
+    // --- Thinking Mode State ---
+    const [thinkingSteps, setThinkingSteps] = useState<any[]>([]);
+    const [isThinking, setIsThinking] = useState(false);
+    const [showThinkingPanel, setShowThinkingPanel] = useState(false);
+
+    // --- AI Director (Thinking Mode) ---
+    const handleAiGenerate = async () => {
+        console.log("handleAiGenerate TRIGGERED with prompt:", promptInput);
+        if (!promptInput) {
+            console.warn("Prompt input is empty");
+            return;
+        }
+
+        // Reset State
+        setThinkingSteps([]);
+        setIsThinking(true);
+        setShowThinkingPanel(true);
+        setAiStatus("Thinking...");
+        console.log("Thinking Panel State set to TRUE");
+
+        try {
+            const stream = await generateSpatialSceneAction(promptInput);
+            const reader = stream.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+                for (const line of lines) {
+                    try {
+                        const data = JSON.parse(line);
+
+                        if (data.type === 'result') {
+                            // Apply Final Result
+                            console.log("Applying AI Scene:", data.data);
+                            // Logic to merge headers/sources
+                            if (data.data.sources) {
+                                // Add new sources
+                                data.data.sources.forEach((sData: any) => {
+                                    // 1. Resolve Asset
+                                    const assetUrl = mapSemanticToAsset(sData.semanticTag || sData.name);
+
+                                    // 2. Create Source
+                                    addSource('generated', sData.position.x, sData.position.y, sData.position.z, sData.name, assetUrl);
+
+                                    // 3. Apply Trajectory (Wiring)
+                                    const addedSource = sourcesRef.current[sourcesRef.current.length - 1];
+
+                                    if (addedSource && sData.trajectory) {
+                                        if (sData.trajectory === 'linear_forward') {
+                                            console.log(`[Director Wiring] Attached 'Linear Forward' to ${sData.name}`);
+                                            addedSource.automationType = 'linear';
+                                            addedSource.automationParams = { targetPos: { x: sData.position.x, y: 0, z: 5 } };
+                                            addedSource.updateAutomation();
+                                        } else if (sData.trajectory === 'orbit') {
+                                            console.log(`[Director Wiring] Attached 'Orbit' to ${sData.name}`);
+                                            addedSource.automationType = 'orbit';
+                                            addedSource.automationParams = { radius: 3, speed: 0.5 };
+                                            addedSource.updateAutomation();
+                                        }
+                                    }
+                                });
+                            }
+                            setAiStatus("Complete");
+                        } else {
+                            // Thinking Step
+                            setThinkingSteps(prev => [...prev, data]);
+                        }
+                    } catch (err) {
+                        console.error("Error parsing chunk:", err);
+                    }
+                }
+            }
+
+        } catch (e) {
+            console.error(e);
+            setAiStatus("Error");
+            setThinkingSteps(prev => [...prev, { id: 'err', text: 'An error occurred during processing.', type: 'action', timestamp: Date.now() }]);
+        } finally {
+            setIsThinking(false);
+            // Hide panel after delay?
+            setTimeout(() => setShowThinkingPanel(false), 5000);
+        }
+    };
+
+    // --- Auto-Foley (Video to Audio) ---
+    const [showAutoFoleyModal, setShowAutoFoleyModal] = useState(false);
+
+    const handleAutoFoley = async (file: File) => {
+        console.log("Starting Auto-Foley for:", file.name);
+
+        // Close modal and show thinking panel
+        setShowAutoFoleyModal(false);
+        setThinkingSteps([]);
+        setIsThinking(true);
+        setShowThinkingPanel(true);
+        setAiStatus("Watching Video...");
+
+        setAiStatus("Watching Video...");
+
+        try {
+            // Convert to Base64
+            const base64Data = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = error => reject(error);
+            });
+
+            const stream = await analyzeVideoAction(base64Data);
+            const reader = stream.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+                for (const line of lines) {
+                    try {
+                        const data = JSON.parse(line);
+                        if (data.type === 'result') {
+                            console.log("Applying Filter Scene:", data.data);
+                            if (data.data.sources) {
+                                // Add new sources with specific start times AND "wired" assets/trajectories
+                                const newSources = data.data.sources;
+
+                                newSources.forEach((sData: any) => {
+                                    // 1. Resolve Asset
+                                    const assetUrl = mapSemanticToAsset(sData.semanticTag || sData.name);
+
+                                    // 2. Create Source (We need to update addSource to accept URL or do it after)
+                                    // Current addSource signature: (type, x, y, z, name)
+                                    // It defaults to a specific fallback. 
+                                    // Let's modify addSource quickly to accept an optional fileUrl override, 
+                                    // OR we modify the source object immediately after creation.
+
+                                    // Since `addSource` is internal and state-based, we might not get the ID back immediately in a clean way 
+                                    // because it uses `setSourcesList` (async). 
+                                    // However, `sourcesRef.current` IS updated synchronously in `addSource`.
+
+                                    addSource('generated', sData.position.x, sData.position.y, sData.position.z, sData.name, assetUrl);
+
+                                    // 3. Apply Trajectory (Post-Creation "Wiring")
+                                    // We need to find the source we just added. 
+                                    // Since `addSource` pushes to `sourcesRef`, it's the last one.
+                                    const addedSource = sourcesRef.current[sourcesRef.current.length - 1];
+
+                                    if (addedSource && sData.trajectory) {
+                                        // "Wire" the trajectory
+                                        // This simulates "Attaching pre-defined list of trajectories"
+                                        if (sData.trajectory === 'linear_forward') {
+                                            console.log(`[Wiring] Attached 'Linear Forward' trajectory to ${sData.name}`);
+
+                                            // Apply Automation
+                                            addedSource.automationType = 'linear';
+                                            addedSource.automationParams = { targetPos: { x: sData.position.x, y: 0, z: 5 } };
+                                            addedSource.updateAutomation();
+                                        } else if (sData.trajectory === 'orbit') {
+                                            console.log(`[Wiring] Attached 'Orbit' trajectory to ${sData.name}`);
+                                            addedSource.automationType = 'orbit';
+                                            addedSource.automationParams = { radius: 3, speed: 0.5 };
+                                            addedSource.updateAutomation();
+                                        }
+                                    }
+                                });
+                            }
+                            setAiStatus("Complete");
+                        } else {
+                            setThinkingSteps(prev => [...prev, data]);
+                        }
+                    } catch (e) { console.error(e); }
+                }
+            }
+        } catch (e) {
+            console.error("Auto-Foley Error", e);
+            setThinkingSteps(prev => [...prev, { id: 'err', text: 'Video analysis failed.', type: 'action', timestamp: Date.now() }]);
+        } finally {
+            setIsThinking(false);
+            setTimeout(() => setShowThinkingPanel(false), 5000);
+        }
+    };
+
+    return (
+        <div className="relative w-screen h-screen dark:bg-black text-gray-900 dark:text-gray-200 overflow-hidden">
+            {/* Canvas */}
+            <div ref={containerRef} className="w-full h-full block" />
+
+            {/* Tooltip */}
+            <Tooltip {...tooltip} />
+
+            {/* Axes Legend */}
+            <div className="absolute bottom-4 right-4 z-10 pointer-events-none text-[10px] font-mono text-gray-500 dark:text-gray-400 bg-white/80 dark:bg-black/80 backdrop-blur p-2 rounded border border-gray-200 dark:border-gray-800">
+                <div className="flex items-center gap-2 mb-1"><div className="w-3 h-0.5 bg-red-500"></div> X: Left/Right</div>
+                <div className="flex items-center gap-2 mb-1"><div className="w-3 h-0.5 bg-green-500"></div> Y: Up/Down</div>
+                <div className="flex items-center gap-2"><div className="w-3 h-0.5 bg-blue-500"></div> Z: Front/Back</div>
+            </div>
+
+            {/* Top Right Controls */}
+            <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+                <AuthButton />
+                <div className="bg-gray-100 dark:bg-gray-800 text-yellow-700 dark:text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded text-[10px] font-bold cursor-default">
+                    DEMO UNLIMITED
+                </div>
+            </div>
+
+            {/* Sidebar */}
+            <EditorSidebar
+                sources={sourcesList}
+                activeSourceId={activeSourceId}
+                onSelectSource={selectSource}
+                onCreateSource={createSource}
+                editorState={editorState}
+                onUpdateSource={updateActiveSource}
+                onFileUpload={handleFileUpload}
+                onTogglePlay={togglePlay}
+                onStopMotion={stopMotion}
+                onAiGenerate={handleAiGenerate}
+                onOpenAutoFoley={() => setShowAutoFoleyModal(true)}
+                promptInput={promptInput}
+                setPromptInput={setPromptInput}
+                aiStatus={aiStatus}
+                isRecording={isRecording}
+                isPro={isPro}
+                onToggleRecording={isRecording ? stopRecording : startRecording}
+                onSave={saveProject}
+                onLoad={loadProject}
+                onReverbChange={(val) => {
+                    if (reverbGainRef.current) reverbGainRef.current.gain.value = val;
+                }}
+                onDeleteSource={deleteSource}
+                onOpenLibrary={() => setShowLibrary(true)}
+                // Storage Props (Global)
+                usedBytes={accountUsage.usedBytes}
+                totalBytes={limits.maxTotalStorageMB * 1024 * 1024}
+                fileCount={accountUsage.fileCount}
+                maxFiles={limits.maxFilesPerProject ?? 100} // Renaming to maxFilesPerAccount conceptually
+            />
+
+            {/* Timeline */}
+            <div className="absolute bottom-0 left-0 right-0 z-30">
+                <Timeline
+                    sources={sourcesList}
+                    currentTime={currentTime}
+                    totalDuration={totalDuration}
+                    isPlaying={isPlaying}
+                    onSeek={handleSeek}
+                    onTogglePlay={togglePlay}
+                    onStop={() => { setIsPlaying(false); setCurrentTime(0); sourcesRef.current.forEach(s => s.stop()); }}
+                    onUpdateSource={handleUpdateSourceTimeline}
+                />
+            </div>
+
+
+
+            {/* 5. Render MediaLibraryModal (Global) */}
+            <MediaLibraryModal
+                isOpen={showLibrary}
+                onClose={() => setShowLibrary(false)}
+                userId={currentUserId || ''}
+                onSelectFile={handleSelectLibraryFile}
+                onUploadNew={handleLibraryUploadNew}
+                onStorageUpdate={fetchAccountUsage}
+            />
+
+            {/* 6. Thinking Panel (Gemini 3) */}
+            <ThinkingPanel
+                isVisible={showThinkingPanel}
+                steps={thinkingSteps}
+                isThinking={isThinking}
+                onClose={() => {
+                    setShowThinkingPanel(false);
+                    setIsThinking(false);
+                }}
+            />
+
+            {/* 7. Auto Foley Modal */}
+            <AutoFoleyModal
+                isOpen={showAutoFoleyModal}
+                onClose={() => setShowAutoFoleyModal(false)}
+                onProcessVideo={handleAutoFoley}
+                isProcessing={isThinking && showAutoFoleyModal} // Actually we close modal on start, so this might not be seen inside modal
+                thinkingSteps={thinkingSteps}
+            />
+        </div>
+    );
+}
+
