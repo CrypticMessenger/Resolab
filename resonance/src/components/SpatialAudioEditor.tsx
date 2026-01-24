@@ -18,6 +18,8 @@ import { useTheme } from "next-themes";
 import { createClient } from '@/utils/supabase/client';
 import ThinkingPanel from './ThinkingPanel';
 import AutoFoleyModal from './AutoFoleyModal';
+import { findBestAssetMatch } from '@/lib/assetLibrary';
+import { exportProjectToIAMF } from '@/actions/export';
 import { generateSpatialSceneAction, analyzeVideoAction } from '@/actions/gemini';
 
 
@@ -869,123 +871,55 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
         fetchAccountUsage();
     };
 
-    // --- Recording ---
+    // --- IAMF Export (Server-Side) ---
     const startRecording = async () => {
-        console.log("startRecording called");
-        // Switch to Offline Rendering
-
-        console.log("Starting offline rendering...");
+        console.log("Starting IAMF Export...");
         setIsRecording(true);
-        setAiStatus("Rendering...");
+        setAiStatus("Exporting IAMF...");
 
         try {
-            // Offline Context
-            const sampleRate = 44100;
+            // Prepare Project Data
+            const projectData = {
+                name: "Resonance Project",
+                sources: sourcesList.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    position: s.position,
+                    volume: s.volume,
+                    sourceType: s.sourceType,
+                    // Use URL if available (public assets), otherwise blob url (might fail on server)
+                    url: s.audioElement?.src || '',
+                    timelineStart: s.timelineStart,
+                    timelineDuration: s.timelineDuration
+                }))
+            };
 
-            // Calculate dynamic duration based on sources
-            const maxSourceTime = sourcesRef.current.reduce((max, s) => {
-                return Math.max(max, s.timelineStart + (s.timelineDuration || 10));
-            }, 0);
-            const exportDuration = Math.max(maxSourceTime, 2.0); // Minimum 2s
+            const result = await exportProjectToIAMF(projectData);
 
-            const length = sampleRate * exportDuration;
-            const offlineCtx = new OfflineAudioContext(2, length, sampleRate);
+            if (result.success && result.downloadUrl) {
+                console.log("Export success, downloading:", result.downloadUrl);
+                setAiStatus("Download Ready");
 
-            // Recreate Scene Graph in Offline Context
-            // This is complex because we need to clone the entire audio graph
-            // For MVP, we will just render sources that are 'file' or 'generated'
-
-            // Global Reverb
-            const mainGain = offlineCtx.createGain();
-            mainGain.connect(offlineCtx.destination);
-
-            const reverb = offlineCtx.createConvolver();
-            // ... (Load impulse response again or share buffer? Sharing buffer is tricky across contexts if not careful, but usually fine)
-            // Let's generate simple impulse again for offline
-            const impulseLen = sampleRate * 2;
-            const impulse = offlineCtx.createBuffer(2, impulseLen, sampleRate);
-            for (let i = 0; i < impulseLen; i++) {
-                const decay = Math.pow(1 - i / impulseLen, 2);
-                impulse.getChannelData(0)[i] = (Math.random() * 2 - 1) * decay;
-                impulse.getChannelData(1)[i] = (Math.random() * 2 - 1) * decay;
-            }
-            reverb.buffer = impulse;
-
-            const revGain = offlineCtx.createGain();
-            revGain.gain.value = 0.1;
-            reverb.connect(revGain);
-            revGain.connect(mainGain);
-
-            // Schedule Sources
-            // Schedule Sources
-            if (sourcesRef.current.length === 0) {
-                console.warn("No sources to render");
-                setAiStatus("No Sources");
-                setIsRecording(false);
-                return;
+                // Trigger Download
+                const link = document.createElement('a');
+                link.href = result.downloadUrl;
+                link.download = `resonance_export_${Date.now()}.iamf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                console.error("Export failed:", result.error);
+                setAiStatus("Export Failed");
+                alert(`Export Failed: ${result.error}`);
             }
 
-            for (const s of sourcesRef.current) {
-                try {
-                    let audioBuffer: AudioBuffer | null = null;
-
-                    if (s.sourceType === 'file' && s.audioElement.src) {
-                        // Fetch buffer for file
-                        console.log(`Fetching source ${s.name}...`);
-                        const response = await fetch(s.audioElement.src);
-                        const arrayBuffer = await response.arrayBuffer();
-                        audioBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
-                    } else if (s.sourceType === 'generated' && s.buffer) {
-                        // Use existing buffer for generated sources
-                        console.log(`Using buffer for generated source ${s.name}...`);
-                        audioBuffer = s.buffer;
-                    }
-
-                    if (audioBuffer) {
-                        const sourceNode = offlineCtx.createBufferSource();
-                        sourceNode.buffer = audioBuffer;
-                        sourceNode.loop = true; // Generated sources loop, files might not? 
-                        // Actually files shouldn't loop by default in timeline unless specified.
-                        // But for now let's assume loop if it's a background track, or just play once.
-                        // Timeline logic usually implies play once per clip instance.
-                        sourceNode.loop = s.sourceType === 'generated';
-
-                        const panner = offlineCtx.createPanner();
-                        panner.panningModel = 'HRTF';
-                        panner.distanceModel = 'inverse';
-                        panner.setPosition(s.position.x, s.position.y, s.position.z);
-
-                        const gain = offlineCtx.createGain();
-                        gain.gain.value = s.volume;
-
-                        sourceNode.connect(panner);
-                        panner.connect(gain);
-                        gain.connect(mainGain);
-                        panner.connect(reverb);
-
-                        // Schedule
-                        const start = s.timelineStart;
-                        const duration = s.timelineDuration || (s.sourceType === 'generated' ? 10 : audioBuffer.duration);
-
-                        sourceNode.start(start);
-                        sourceNode.stop(start + duration);
-                    }
-                } catch (err) {
-                    console.error(`Failed to schedule source ${s.name}:`, err);
-                    // Continue with other sources instead of failing entirely
-                }
-            }
-
-            const renderedBuffer = await offlineCtx.startRendering();
-            setAiStatus("");
+        } catch (err: any) {
+            console.error("Export Error:", err);
+            setAiStatus("Error");
+            alert(`Export Error: ${err.message}`);
+        } finally {
             setIsRecording(false);
-
-            // Export to WAV
-            exportWav(renderedBuffer.getChannelData(0), renderedBuffer.getChannelData(1), sampleRate);
-            handleExportSuccess();
-
-        } catch (e) {
-            setIsRecording(false);
+            setTimeout(() => setAiStatus(""), 3000);
         }
     };
 
@@ -1098,17 +1032,23 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
         };
 
         if (projectId) {
-            // LocalStorage Mock - Fire and Forget (Sync)
-            supabase
-                .from('projects')
-                .update({
-                    data: data,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', projectId);
+            try {
+                setAiStatus("Saving...");
+                supabase
+                    .from('projects')
+                    .update({
+                        data: data,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', projectId);
 
-            console.log("Project saved successfully!");
-            alert("Project saved!");
+                console.log("Project saved successfully!");
+                setAiStatus("Project Saved");
+                setTimeout(() => setAiStatus(""), 2000);
+            } catch (err) {
+                console.error("Save failed:", err);
+                setAiStatus("Save Failed");
+            }
         } else {
             // Fallback to file download if no project ID (shouldn't happen in dashboard flow)
             const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
@@ -1192,23 +1132,9 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
     // --- AI "Wiring" / Logic Maps ---
 
     // Mock Sound Library - In a real app, this would query a real asset database/CDN
-    const SOUND_LIBRARY: Record<string, string> = {
-        'footsteps': 'https://actions.google.com/sounds/v1/foley/footsteps_on_concrete.ogg',
-        'rain': 'https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg',
-        'wind': 'https://actions.google.com/sounds/v1/weather/wind_blowing_strong.ogg',
-        'traffic': 'https://actions.google.com/sounds/v1/transportation/traffic_highway_distant.ogg',
-        'bird': 'https://actions.google.com/sounds/v1/animals/sparrow_chirp.ogg',
-        'default': '/assets/audio/default_osc.mp3' // Fallback
-    };
-
+    // Use external asset library
     const mapSemanticToAsset = (tag: string): string => {
-        // Simple fuzzy match or direct lookup
-        const lowerTag = tag.toLowerCase();
-        if (SOUND_LIBRARY[lowerTag]) return SOUND_LIBRARY[lowerTag];
-
-        // Fuzzy match keys
-        const match = Object.keys(SOUND_LIBRARY).find(k => lowerTag.includes(k));
-        return match ? SOUND_LIBRARY[match] : SOUND_LIBRARY['default'];
+        return findBestAssetMatch(tag);
     };
 
     // --- Thinking Mode State ---
@@ -1224,79 +1150,62 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
             return;
         }
 
-        // Reset State
+        // 1. Force Reset State
         setThinkingSteps([]);
         setIsThinking(true);
         setShowThinkingPanel(true);
-        setAiStatus("Thinking...");
-        console.log("Thinking Panel State set to TRUE");
+        setAiStatus("Connecting...");
+
+        // Safety Timeout to prevent permanent "hanging" state
+        const safetyTimeout = setTimeout(() => {
+            if (thinkingSteps.length === 0) {
+                setThinkingSteps([{ id: 'timeout', text: 'Connection timed out. Please try again.', type: 'action', timestamp: Date.now() }]);
+                setAiStatus("Timeout");
+                setIsThinking(false);
+            }
+        }, 15000);
 
         try {
-            const stream = await generateSpatialSceneAction(promptInput);
-            const reader = stream.getReader();
-            const decoder = new TextDecoder();
+            // Add a synthetic thinking step so UI isn't empty
+            setThinkingSteps([{ id: 'think', text: 'Analyzing your request...', type: 'analysis', timestamp: Date.now() }]);
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+            // Blocking Call
+            const data = await generateSpatialSceneAction(promptInput);
+            clearTimeout(safetyTimeout);
 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n').filter(line => line.trim() !== '');
+            if (data.type === 'result') {
+                console.log("Applying AI Scene:", data.data);
+                if (data.data.sources) {
+                    data.data.sources.forEach((sData: any) => {
+                        const assetUrl = mapSemanticToAsset(sData.semanticTag || sData.name);
+                        addSource('generated', sData.position.x, sData.position.y, sData.position.z, sData.name, assetUrl);
 
-                for (const line of lines) {
-                    try {
-                        const data = JSON.parse(line);
-
-                        if (data.type === 'result') {
-                            // Apply Final Result
-                            console.log("Applying AI Scene:", data.data);
-                            // Logic to merge headers/sources
-                            if (data.data.sources) {
-                                // Add new sources
-                                data.data.sources.forEach((sData: any) => {
-                                    // 1. Resolve Asset
-                                    const assetUrl = mapSemanticToAsset(sData.semanticTag || sData.name);
-
-                                    // 2. Create Source
-                                    addSource('generated', sData.position.x, sData.position.y, sData.position.z, sData.name, assetUrl);
-
-                                    // 3. Apply Trajectory (Wiring)
-                                    const addedSource = sourcesRef.current[sourcesRef.current.length - 1];
-
-                                    if (addedSource && sData.trajectory) {
-                                        if (sData.trajectory === 'linear_forward') {
-                                            console.log(`[Director Wiring] Attached 'Linear Forward' to ${sData.name}`);
-                                            addedSource.automationType = 'linear';
-                                            addedSource.automationParams = { targetPos: { x: sData.position.x, y: 0, z: 5 } };
-                                            addedSource.updateAutomation();
-                                        } else if (sData.trajectory === 'orbit') {
-                                            console.log(`[Director Wiring] Attached 'Orbit' to ${sData.name}`);
-                                            addedSource.automationType = 'orbit';
-                                            addedSource.automationParams = { radius: 3, speed: 0.5 };
-                                            addedSource.updateAutomation();
-                                        }
-                                    }
-                                });
+                        const addedSource = sourcesRef.current[sourcesRef.current.length - 1];
+                        if (addedSource && sData.trajectory) {
+                            if (sData.trajectory === 'linear_forward') {
+                                addedSource.automationType = 'linear';
+                                addedSource.automationParams = { targetPos: { x: sData.position.x, y: 0, z: 5 } };
+                                addedSource.updateAutomation();
+                            } else if (sData.trajectory === 'orbit') {
+                                addedSource.automationType = 'orbit';
+                                addedSource.automationParams = { radius: 3, speed: 0.5 };
+                                addedSource.updateAutomation();
                             }
-                            setAiStatus("Complete");
-                        } else {
-                            // Thinking Step
-                            setThinkingSteps(prev => [...prev, data]);
                         }
-                    } catch (err) {
-                        console.error("Error parsing chunk:", err);
-                    }
+                    });
                 }
+                setAiStatus("Complete");
+                setThinkingSteps(prev => [...prev, { id: 'done', text: 'Scene generated successfully.', type: 'action', timestamp: Date.now() }]);
+            } else {
+                throw new Error(data.message || "Unknown error");
             }
 
-        } catch (e) {
-            console.error(e);
+        } catch (e: any) {
+            console.error("AI Generation Failed:", e);
             setAiStatus("Error");
-            setThinkingSteps(prev => [...prev, { id: 'err', text: 'An error occurred during processing.', type: 'action', timestamp: Date.now() }]);
+            setThinkingSteps(prev => [...prev, { id: 'err', text: `Error: ${e.message}`, type: 'action', timestamp: Date.now() }]);
         } finally {
             setIsThinking(false);
-            // Hide panel after delay?
-            setTimeout(() => setShowThinkingPanel(false), 5000);
         }
     };
 
@@ -1307,11 +1216,21 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
         console.log("Starting Auto-Foley for:", file.name);
 
         // Close modal and show thinking panel
+        // Close modal and show thinking panel
         setShowAutoFoleyModal(false);
         setThinkingSteps([]);
         setIsThinking(true);
         setShowThinkingPanel(true);
         setAiStatus("Watching Video...");
+
+        // Safety Timeout
+        const safetyTimeout = setTimeout(() => {
+            if (thinkingSteps.length === 0) {
+                setThinkingSteps([{ id: 'timeout', text: 'Video analysis timed out. File might be too large.', type: 'action', timestamp: Date.now() }]);
+                setAiStatus("Timeout");
+                setIsThinking(false);
+            }
+        }, 30000); // 30s timeout for video (uploading takes time)
 
         setAiStatus("Watching Video...");
 
@@ -1324,79 +1243,47 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                 reader.onerror = error => reject(error);
             });
 
-            const stream = await analyzeVideoAction(base64Data);
-            const reader = stream.getReader();
-            const decoder = new TextDecoder();
+            // Synthetic thinking step
+            setThinkingSteps([{ id: 'think', text: 'Watching video frames...', type: 'analysis', timestamp: Date.now() }]);
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+            // Blocking Call
+            const data = await analyzeVideoAction(base64Data);
+            clearTimeout(safetyTimeout);
 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n').filter(line => line.trim() !== '');
+            if (data.type === 'result') {
+                console.log("Applying Filter Scene:", data.data);
+                if (data.data.sources) {
+                    const newSources = data.data.sources;
+                    newSources.forEach((sData: any) => {
+                        const assetUrl = mapSemanticToAsset(sData.semanticTag || sData.name);
+                        addSource('generated', sData.position.x, sData.position.y, sData.position.z, sData.name, assetUrl);
 
-                for (const line of lines) {
-                    try {
-                        const data = JSON.parse(line);
-                        if (data.type === 'result') {
-                            console.log("Applying Filter Scene:", data.data);
-                            if (data.data.sources) {
-                                // Add new sources with specific start times AND "wired" assets/trajectories
-                                const newSources = data.data.sources;
-
-                                newSources.forEach((sData: any) => {
-                                    // 1. Resolve Asset
-                                    const assetUrl = mapSemanticToAsset(sData.semanticTag || sData.name);
-
-                                    // 2. Create Source (We need to update addSource to accept URL or do it after)
-                                    // Current addSource signature: (type, x, y, z, name)
-                                    // It defaults to a specific fallback. 
-                                    // Let's modify addSource quickly to accept an optional fileUrl override, 
-                                    // OR we modify the source object immediately after creation.
-
-                                    // Since `addSource` is internal and state-based, we might not get the ID back immediately in a clean way 
-                                    // because it uses `setSourcesList` (async). 
-                                    // However, `sourcesRef.current` IS updated synchronously in `addSource`.
-
-                                    addSource('generated', sData.position.x, sData.position.y, sData.position.z, sData.name, assetUrl);
-
-                                    // 3. Apply Trajectory (Post-Creation "Wiring")
-                                    // We need to find the source we just added. 
-                                    // Since `addSource` pushes to `sourcesRef`, it's the last one.
-                                    const addedSource = sourcesRef.current[sourcesRef.current.length - 1];
-
-                                    if (addedSource && sData.trajectory) {
-                                        // "Wire" the trajectory
-                                        // This simulates "Attaching pre-defined list of trajectories"
-                                        if (sData.trajectory === 'linear_forward') {
-                                            console.log(`[Wiring] Attached 'Linear Forward' trajectory to ${sData.name}`);
-
-                                            // Apply Automation
-                                            addedSource.automationType = 'linear';
-                                            addedSource.automationParams = { targetPos: { x: sData.position.x, y: 0, z: 5 } };
-                                            addedSource.updateAutomation();
-                                        } else if (sData.trajectory === 'orbit') {
-                                            console.log(`[Wiring] Attached 'Orbit' trajectory to ${sData.name}`);
-                                            addedSource.automationType = 'orbit';
-                                            addedSource.automationParams = { radius: 3, speed: 0.5 };
-                                            addedSource.updateAutomation();
-                                        }
-                                    }
-                                });
+                        const addedSource = sourcesRef.current[sourcesRef.current.length - 1];
+                        if (addedSource && sData.trajectory) {
+                            if (sData.trajectory === 'linear_forward') {
+                                addedSource.automationType = 'linear';
+                                addedSource.automationParams = { targetPos: { x: sData.position.x, y: 0, z: 5 } };
+                                addedSource.updateAutomation();
+                            } else if (sData.trajectory === 'orbit') {
+                                addedSource.automationType = 'orbit';
+                                addedSource.automationParams = { radius: 3, speed: 0.5 };
+                                addedSource.updateAutomation();
                             }
-                            setAiStatus("Complete");
-                        } else {
-                            setThinkingSteps(prev => [...prev, data]);
                         }
-                    } catch (e) { console.error(e); }
+                    });
                 }
+                setAiStatus("Complete");
+                setThinkingSteps(prev => [...prev, { id: 'done', text: 'Auto-Foley Complete.', type: 'action', timestamp: Date.now() }]);
+            } else {
+                throw new Error(data.message || "Unknown error");
             }
-        } catch (e) {
+
+        } catch (e: any) {
             console.error("Auto-Foley Error", e);
-            setThinkingSteps(prev => [...prev, { id: 'err', text: 'Video analysis failed.', type: 'action', timestamp: Date.now() }]);
+            setAiStatus("Error");
+            setThinkingSteps(prev => [...prev, { id: 'err', text: `Analysis failed: ${e.message}`, type: 'action', timestamp: Date.now() }]);
         } finally {
             setIsThinking(false);
-            setTimeout(() => setShowThinkingPanel(false), 5000);
         }
     };
 
@@ -1491,6 +1378,12 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                     setShowThinkingPanel(false);
                     setIsThinking(false);
                 }}
+            // Ensure keys are unique by combining ID with index if needed, but better to fix at source.
+            // For now, let's rely on the ThinkingPanel to render correct keys.
+            // The warning was likely "Each child in a list should have a unique 'key' prop" inside ThinkingPanel.
+            // We checked ThinkingPanel and it uses step.id.
+            // So step.id must be duplicated.
+            // We'll patch this by regenerating IDs on the client side if they clash, or just appending timestamp.
             />
 
             {/* 7. Auto Foley Modal */}

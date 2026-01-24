@@ -220,8 +220,11 @@ export class SourceObject {
         }
 
         // Relative time in timeline
-        const t = Math.max(0, currentTime - this.timelineStart);
-        const duration = this.automationParams.duration || this.timelineDuration || 5;
+        let t = Math.max(0, currentTime - this.timelineStart);
+        const duration = this.automationParams.duration || this.timelineDuration || 10;
+
+        // Clamp to duration to stop movement when timeline ends
+        if (t > duration) t = duration;
 
         let finalPos = { ...this.basePosition };
 
