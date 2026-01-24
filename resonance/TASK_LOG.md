@@ -58,3 +58,4 @@
 - [x] Auto-save Projects (LocalStorage persistence on change)
 - [ ] **Release Prep:** Update API Model to `gemini-3-flash-preview` (currently `gemini-2.5-flash-lite`)
 - [ ] **Real IAMF Implementation:** Replace mock script with actual audio mixing/rendering logic (ffmpeg/numpy integration).
+- [ ] remove all useless files and rename the appication completely

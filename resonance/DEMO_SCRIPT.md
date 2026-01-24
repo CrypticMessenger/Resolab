@@ -1,58 +1,88 @@
-# Resonance - Demo Video Script / Storyboard
-**Target Duration:** 2:30 - 3:00 minutes
-**Theme:** "The Future of Spatial Audio Authoring"
-
-## Core Narrative
-Audio engineering is stuck in 2D (stereo tracks), but the world is 3D. Creating spatial audio is hard/technical. **Resonance** makes it intuitive, semantic, and AI-assisted.
+# Resonance - The "Keynote" Launch Script
+**Style:** Apple/Google Product Reveal
+**Tone:** Confident, Revolutionary, Minimalist.
+**Music:** Start with a deep, rhythmic bass pulse. Transition to driving, high-energy synth-wave after the reveal.
 
 ---
 
-## 0:00 - 0:30: The Hook & Introduction
-**Visual:**
-- Start with a black screen.
-- Fade in the **Resonance** logo/UI with the "Galaxy" background.
-- Show the empty 3D grid.
+## 🌑 0:00 - 0:15: The Problem (Cinematic Intro)
+**Visual:** All Black Screen. 
+**Text Fade In:** "For 100 years..."
+**Text Change:** "...audio has been trapped..."
+**Text Change:** "...in stereo."
+*(Fade to a flat 2D waveform line boredly scrolling across the screen)*
 
-**Script/Voiceover:**
-"We are moving into an era of spatial computing—VR, AR, and immersive web. But audio tools are still stuck in stereo tracks."
-"Meet **Resonance**: A spatial audio studio powered by Gemini 3. It allows you to design soundscapes not by moving sliders, but by describing scenes."
+**Voiceover:** "We live in a 3D world. We build 3D games. We explore 3D webs. Yet, our audio tools are still stuck in two dimensions."
 
-## 0:30 - 1:00: Feature 1 - The AI Director (Gemini 3)
-**Visual:**
-- Mouse clicks "AI Director".
-- **Action:** User types: *"A busy cyberpunk market in Tokyo, raining neon, flying cars overhead."*
-- **Reaction:**
-    1. Show the "Thinking Panel" streaming the logic (Gemini 3 decomposing the prompt).
-    2. *BAM* — Sources appear on the grid (Rain, Crowd, Hovercars, Neon hum).
-    3. User hits "Play". We hear the immersive mix.
+---
 
-**Key Point:** "Don't search for files. Describe the vibe. Gemini understands semantics ('cyberpunk') and translates them into spatial coordinates and assets."
+## 💥 0:15 - 0:25: The Reveal
+**Visual:** The 2D Waveform *shatters* outwards into the 3D Resonance Grid.
+**Text:** **RESONANCE**
+**Sub-text:** "The Era of Spatial Authoring."
 
-## 1:00 - 1:45: Feature 2 - Auto-Foley (Multimodal)
-**Visual:**
-- **Action:** User drags and drops a video file (e.g., a clip of a dog barking or a door slamming).
-- **Reaction:**
-    1. The "Thinking Panel" analyzes the video frames.
-    2. Resonance automatically places a "Dog Bark" sound source at the exact position of the dog in the frame.
-    3. User moves the source to adjust it.
+**Voiceover:** "Introducing Resonance. The first spatial audio director powered by Gemini 3."
 
-**Key Point:** "With Gemini Multimodal, we can watch video and sound-design it instantly. Auto-Foley turns pixels into spatial audio objects."
+*(Beat Drop - High Energy Music Starts)*
 
-## 1:45 - 2:15: Feature 3 - The Spatial Editor (IAMF)
-**Visual:**
-- Show the user manually dragging a source (e.g., a "Helicopter") around the listener head in the UI.
-- Show the "Trajectory" lines.
-- Zoom in on the "Export" button.
-- **Action:** Click "Export Audio".
-- Show the `.iamf` file downloading.
+---
 
-**Key Point:** "This isn't just a toy. It exports to **IAMF (Immersive Audio Model and Formats)**—the new open standard adopted by YouTube and Samsung. You build once, and it plays back correctly on headphones, soundbars, or home theaters."
+## 🔮 0:25 - 0:55: The "Magic" (Auto-Foley / Multimodal)
+**Visual:** Full screen video clip (Rainy Tokyo Street). Sound is OFF.
+**Voiceover:** "Imagine taking a video..."
+**Action:** The video frame shrinks and drops onto the Resonance Grid.
+**Voiceover:** "...and giving it depth."
 
-## 2:15 - 3:00: Tech Stack & Closing
-**Visual:**
-- Rapid montage of the code/tech stack: Next.js, Web Audio API, Python (Export), and Gemini 3.5.
-- Final shot: The completed soundscape playing with all visualizers active.
-- Fade to GitHub link.
+**Visual:** The "Thinking" UI explodes with tags: `RAIN`, `NEON`, `TRAFFIC`.
+**Sound:** *WHOOSH* - The 3D audio kicks in instant, rich, immersive.
 
-**Script/Voiceover:**
-"Resonance bridges the gap between text, video, and immersive audio. Built for the Gemini 3 Hackathon. Experience the sound of the future."
+**Voiceover:** "Multimodal agents analyze every pixel. They see the rain. They calculate the traffic. And they place sound sources in physical space."
+
+**Visual:** **"LISTEN."** (Text Overlay)
+*(Music cuts out. Pure 5s Spatial Sound demo. Rain surrounds the user.)*
+
+---
+
+## 🧠 0:55 - 1:35: The "Brain" (Reasoning Execution)
+**Visual:** Split screen. Chat Prompt on Left. 3D Grid on Right.
+**Voiceover:** "It's not just generation. It's reasoning."
+
+**Action:** Typing: *"A ghost walking on the ceiling."*
+**Visual:** Zoom into the Code Logs. Highlight: `Elevation: +3m`.
+**Voiceover:** "Resonance understands physics. It knows that 'ceiling' means positive elevation. It knows 'walking' means trajectory. It builds a Semantic Scene Graph."
+
+**Visual:** A glowing orb helps the "Ghost" sound pass *over* the camera.
+*(5s Audio Demo: Footsteps panning front-to-back overhead)*
+
+**Voiceover:** "True verticality. No manual mixing required."
+
+---
+
+## 🚀 1:35 - 2:05: The Innovation (IAMF Export)
+**Visual:** The "Export" Menu opens. 
+**Action:** Mouse hovers over "WAV". Then moves to **"IAMF (Spatial)"**.
+**Text Overlay:** **IAMF** (Immersive Audio Model and Formats)
+
+**Voiceover:** "But why build in 3D if you export to 2D? Resonance is one of the first web tools to support **IAMF**—the new open standard from Google and Samsung."
+
+**Visual:** Diagram showing Resonance -> IAMF File -> YouTube / Samsung Soundbar / VR Headset.
+**Voiceover:** "We don't just render pixels. We render an object-based audio container that adapts to your device—whether it's a soundbar or a VR headset. Build once, resonate everywhere."
+
+---
+
+## 🌍 2:05 - 2:30: The Future (Outro)
+**Visual:** The grid slowly zooms out to show a galaxy of projects.
+**Voiceover:** "The flat era is over. It's time to unmute the spatial web."
+
+**Text:** **Resonance.**
+**Sub-text:** Built with Gemini 3.
+
+**Visual:** Fade to Black. 
+**Text:** "Try the Alpha @ [Link]"
+
+---
+
+## 📋 Production Notes for the "Apple Vibe"
+1.  **Typography:** Use a clean, bold sans-serif font (Inter or Helvetica) for all overlays.
+2.  **Timing:** Don't rush. Leave "air" between the sentences. Let the visual punch land before you explain it.
+3.  **Contrast:** Ensure the "Silence" at the beginning is dead silent, so the "Sound" at the reveal hits hard.
