@@ -924,9 +924,20 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
             setAiStatus("Rendering...");
 
+            // Calculate dynamic duration based on sources
+            const calculatedDuration = exportSources.reduce((max, s) => {
+                if (s.sourceType !== 'file' && s.sourceType !== 'generated') return max;
+                const end = s.timelineStart + (s.timelineDuration || 10);
+                return Math.max(max, end);
+            }, 0);
+
+            // Use calculated duration, but ensure at least 1 second if empty
+            const exportDuration = Math.max(calculatedDuration, 1);
+            console.log("Export Duration:", exportDuration);
+
             const wavBlob = await renderTimelineToWav(
                 exportSources,
-                totalDuration,
+                exportDuration,
                 (msg) => setAiStatus(msg)
             );
 
