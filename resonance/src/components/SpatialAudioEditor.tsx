@@ -21,8 +21,9 @@ import AutoFoleyModal from './AutoFoleyModal';
 import { findBestAssetMatch } from '@/lib/assetLibrary';
 
 import { generateSpatialSceneAction, analyzeVideoAction } from '@/actions/gemini';
-import { renderTimelineToWav } from '@/utils/audioExport';
+import { renderTimelineToWav, ExportSettings } from '@/utils/audioExport';
 import { saveAudioFile, getFileUrl, getAudioFile } from '@/utils/indexedDB';
+import ExportSettingsModal from './spaudio/ExportSettingsModal';
 
 
 export default function SpatialAudioEditor({ projectId }: { projectId?: string }) {
@@ -63,6 +64,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
     const [aiStatus, setAiStatus] = useState('');
     const [promptInput, setPromptInput] = useState('');
     const [showLibrary, setShowLibrary] = useState(false);
+    const [showExportSettings, setShowExportSettings] = useState(false);
 
     // Account Usage State
     const [accountUsage, setAccountUsage] = useState({ usedBytes: 0, fileCount: 0 });
@@ -520,8 +522,12 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
         }
         if (updates.automationParams !== undefined) {
             source.automationParams = updates.automationParams;
-            source.updateAutomation();
-            // Don't necessarily sync list on every param change if dragging, but good for UI
+            // Re-apply trajectory for live-preview if paused or just to ensure immediate update
+            if (typeof source.applyTrajectory === 'function') {
+                const t = currentTimeRef.current; // Use current constrained time
+                source.applyTrajectory(t);
+            }
+            source.updateAutomation(); // Update visualizer lines
         }
 
         if (updates.x !== undefined || updates.y !== undefined || updates.z !== undefined) {
@@ -901,8 +907,12 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
     // --- IAMF Export (Server-Side) ---
     // --- Audio Export (Client-Side Offline Render) ---
-    const startRecording = async () => {
-        console.log("Starting Audio Export...");
+    const startExportFlow = () => {
+        setShowExportSettings(true);
+    };
+
+    const runExport = async (settings: ExportSettings) => {
+        console.log("Starting Audio Export...", settings);
         setIsRecording(true);
         setAiStatus("Preparing Export...");
 
@@ -938,14 +948,17 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
             const wavBlob = await renderTimelineToWav(
                 exportSources,
                 exportDuration,
-                (msg) => setAiStatus(msg)
+                (msg) => setAiStatus(msg),
+                settings
             );
 
             // Trigger Download
             const url = URL.createObjectURL(wavBlob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `resonance_export_${Date.now()}.wav`;
+            // Filename includes settings
+            const suffix = settings.bitDepth === 32 ? '32bit_float' : `${settings.bitDepth}bit`;
+            link.download = `resonance_${Math.round(settings.sampleRate / 1000)}k_${suffix}_${Date.now()}.wav`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -1468,7 +1481,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                 aiStatus={aiStatus}
                 isRecording={isRecording}
                 isPro={isPro}
-                onToggleRecording={isRecording ? stopRecording : startRecording}
+                onToggleRecording={isRecording ? stopRecording : startExportFlow}
                 onSave={saveProject}
                 onLoad={loadProject}
                 onReverbChange={(val) => {
@@ -1533,6 +1546,13 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                 onProcessVideo={handleAutoFoley}
                 isProcessing={isThinking && showAutoFoleyModal} // Actually we close modal on start, so this might not be seen inside modal
                 thinkingSteps={thinkingSteps}
+            />
+
+            {/* 8. Export Settings Modal */}
+            <ExportSettingsModal
+                isOpen={showExportSettings}
+                onClose={() => setShowExportSettings(false)}
+                onExport={runExport}
             />
         </div>
     );

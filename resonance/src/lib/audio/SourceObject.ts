@@ -235,25 +235,18 @@ export class SourceObject {
             const centerX = this.automationParams.centerX || 0;
             const centerZ = this.automationParams.centerZ || 0;
 
-            // Orbit is usually absolute around a center, OR relative to base? 
-            // Previous impl was absolute center. User might expect "Orbit around ME" or "Orbit around ITSELF".
-            // Let's stick to "Orbit around defined center params" but maybe use basePos as the center?
-            // "Orbit" preset usually means "Go around head". 
-            // If user moves source, does it offset the orbit?
-            // Let's implement: Calculated Circle + BasePosition Offset (so you can move the whole circle)
-            // Actually, "Orbit" usually implies Center (0,0,0). 
-            // Let's force Center to be (0,0,0) offset by Params, ignoring BasePos X/Z but respecting Y?
-            // User feedback "Pulse... move core center" implies they expect BasePos to modify the automation result.
+            // Simple Orbit Logic
+            const angle = t * speed + ((this.automationParams.initialAngle || 0) * Math.PI / 180);
 
-            // New Orbit Logic: Circle around (centerX, centerZ) + BasePosition offset? 
-            // No, that's confusing. 
-            // Let's assume Orbit is Absolute Center (0,0,0) by default, and user changes Center parameters.
-            // BUT BasePos.y should be respected.
-
-            const angle = t * speed;
+            // Orbit is centered at (centerX, centerZ)
+            // Y is kept from Base Position
             finalPos.x = centerX + Math.cos(angle) * radius;
             finalPos.z = centerZ + Math.sin(angle) * radius;
             finalPos.y = this.basePosition.y;
+
+            // Note: If user wants to offset the WHOLE orbit, they should use centerX/centerZ.
+            // Using basePos.x/z as center might be what they expect though? 
+            // For now, let's keep it consistent: Orbit overrides X/Z entirely.
         }
         else if (this.automationType === 'linear') {
             const target = this.targetPosition || { x: 0, y: 0, z: 0 };

@@ -17,6 +17,7 @@ export interface AutomationParams {
     // Orbit
     radius?: number;
     speed?: number;
+    initialAngle?: number; // Phase in degrees (0-360)
     centerX?: number;
     centerZ?: number;
 

@@ -17,7 +17,11 @@ function calculatePosition(
         const speed = params.speed || 1;
         const centerX = params.centerX || 0;
         const centerZ = params.centerZ || 0;
-        const angle = t * speed;
+
+        const initialAngleDeg = params.initialAngle || 0;
+        const initialAngleRad = (initialAngleDeg * Math.PI) / 180;
+        const angle = t * speed + initialAngleRad;
+
         pos.x = centerX + Math.cos(angle) * radius;
         pos.z = centerZ + Math.sin(angle) * radius;
         // Y remains basePos.y
@@ -45,14 +49,27 @@ function calculatePosition(
     return pos;
 }
 
+// Helper to write string to DataView
+function writeString(view: DataView, offset: number, string: string) {
+    for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+    }
+}
+
+export type ExportSettings = {
+    sampleRate: number;
+    bitDepth: 16 | 24 | 32;
+};
+
 export async function renderTimelineToWav(
     sources: SourceData[],
     totalDuration: number,
-    onProgress: (msg: string) => void
+    onProgress: (msg: string) => void,
+    settings: ExportSettings = { sampleRate: 44100, bitDepth: 16 }
 ): Promise<Blob> {
 
-    // 1. Setup Context
-    const sampleRate = 44100;
+    // 1. Setup Context with selected Sample Rate
+    const sampleRate = settings.sampleRate;
     const length = Math.ceil(totalDuration * sampleRate);
     // @ts-ignore - types might be missing for OfflineAudioContext on simple setups
     const ctx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(2, length, sampleRate);
@@ -94,12 +111,13 @@ export async function renderTimelineToWav(
                     arrayBuffer = await response.arrayBuffer();
                 }
 
+                // Decode audio data (will resample to context sample rate if needed)
                 const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
                 bufferMap.set(source.fileUrl, audioBuffer);
                 console.log(`Loaded: ${source.name}`);
             } catch (e) {
                 console.error(`Failed to load ${source.fileUrl}`, e);
-                onProgress(`Error loading: ${source.name}`);
+                onProgress(`Error loading: ${source.name || "Unknown Asset"}`);
             }
         }
     }
@@ -141,7 +159,6 @@ export async function renderTimelineToWav(
         srcNode.stop(Math.min(startTime + duration, totalDuration));
 
         // Automation Baking
-        // Sample rate for automation curve: 20Hz (every 50ms) is usually smooth enough
         const curveStep = 0.05;
         const curveLength = Math.ceil(duration / curveStep) + 1;
 
@@ -166,7 +183,6 @@ export async function renderTimelineToWav(
         }
 
         // Apply Curves
-        // setValueCurveAtTime applies curve for the given DURATION
         try {
             if (curveLength > 1) {
                 panner.positionX.setValueCurveAtTime(xCurve, startTime, duration);
@@ -177,7 +193,6 @@ export async function renderTimelineToWav(
             }
         } catch (e) {
             console.warn("Curve error", e);
-            // Fallback to static
             panner.setPosition(xCurve[0], yCurve[0], zCurve[0]);
         }
     });
@@ -185,19 +200,20 @@ export async function renderTimelineToWav(
     onProgress("Rendering audio...");
     const renderedBuffer = await ctx.startRendering();
 
-    onProgress("Encoding WAV...");
-    return bufferToWav(renderedBuffer);
+    onProgress(`Encoding WAV (${settings.bitDepth}-bit)...`);
+    return bufferToWav(renderedBuffer, settings.bitDepth);
 }
 
-// WAV Encoder
-function bufferToWav(buffer: AudioBuffer): Blob {
+// WAV Encoder with Bit Depth Support
+function bufferToWav(buffer: AudioBuffer, bitDepth: 16 | 24 | 32): Blob {
     const numChannels = buffer.numberOfChannels;
     const sampleRate = buffer.sampleRate;
-    const format = 1; // PCM
-    const bitDepth = 16;
+    const format = bitDepth === 32 ? 3 : 1; // 1 = PCM, 3 = IEEE Float
+    const bytesPerSample = bitDepth / 8;
+    const blockAlign = numChannels * bytesPerSample;
 
     // Interleave
-    const length = buffer.length * numChannels * 2;
+    const length = buffer.length * blockAlign;
     const arrayBuffer = new ArrayBuffer(44 + length);
     const view = new DataView(arrayBuffer);
 
@@ -210,8 +226,8 @@ function bufferToWav(buffer: AudioBuffer): Blob {
     view.setUint16(20, format, true);
     view.setUint16(22, numChannels, true);
     view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * numChannels * 2, true);
-    view.setUint16(32, numChannels * 2, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
     view.setUint16(34, bitDepth, true);
     writeString(view, 36, 'data');
     view.setUint32(40, length, true);
@@ -222,16 +238,29 @@ function bufferToWav(buffer: AudioBuffer): Blob {
         for (let channel = 0; channel < numChannels; channel++) {
             const sample = buffer.getChannelData(channel)[i];
             const s = Math.max(-1, Math.min(1, sample)); // Clip
-            view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-            offset += 2;
+
+            if (bitDepth === 16) {
+                // 16-bit PCM
+                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                offset += 2;
+            } else if (bitDepth === 24) {
+                // 24-bit PCM
+                const val = s < 0 ? s * 0x800000 : s * 0x7FFFFF;
+                const intVal = Math.floor(val);
+                view.setUint8(offset, intVal & 0xFF);
+                view.setUint8(offset + 1, (intVal >> 8) & 0xFF);
+                view.setUint8(offset + 2, (intVal >> 16) & 0xFF); // Sample is signed, 24-bit works via 2's complement naturally if we just cast bits?
+                // Actually setUint8 preserves lower 8 bits.
+                // For negative numbers, >> works.
+                offset += 3;
+            } else if (bitDepth === 32) {
+                // 32-bit Float
+                view.setFloat32(offset, s, true);
+                offset += 4;
+            }
         }
     }
 
     return new Blob([view], { type: 'audio/wav' });
 }
 
-function writeString(view: DataView, offset: number, string: string) {
-    for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
-    }
-}

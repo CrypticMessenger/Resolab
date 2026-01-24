@@ -31,6 +31,13 @@ export default function GlobalControls({
     setPromptInput,
     aiStatus
 }: GlobalControlsProps) {
+    const [reverbLevel, setReverbLevel] = React.useState(10); // Default to 10%
+
+    const handleReverbChange = (val: number) => {
+        setReverbLevel(val);
+        onReverbChange(val);
+    };
+
     return (
         <div className="space-y-6">
             <div className="space-y-2">
@@ -42,11 +49,12 @@ export default function GlobalControls({
                             <Waves size={12} />
                             <span>Reverb</span>
                         </div>
-                        <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">10%</span>
+                        <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">{reverbLevel}%</span>
                     </div>
                     <input
-                        type="range" min="0" max="100" defaultValue="10"
-                        onChange={(e) => onReverbChange(Number(e.target.value))}
+                        type="range" min="0" max="100"
+                        value={reverbLevel}
+                        onChange={(e) => handleReverbChange(Number(e.target.value))}
                         className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                     />
                 </div>

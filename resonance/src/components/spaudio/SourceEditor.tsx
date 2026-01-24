@@ -162,6 +162,18 @@ export default function SourceEditor({
                                 className="w-full bg-gray-200 dark:bg-white/10 rounded px-2 py-1 text-xs"
                             />
                         </div>
+                        <div className="col-span-2 space-y-1 pt-1 border-t border-gray-200 dark:border-white/5">
+                            <div className="flex justify-between items-center">
+                                <label className="text-[9px] text-gray-400 font-bold uppercase">Start Angle (Phase)</label>
+                                <span className="text-[9px] font-mono text-gray-500">{editorState.automationParams?.initialAngle || 0}°</span>
+                            </div>
+                            <input
+                                type="range" min="0" max="360" step="15"
+                                value={editorState.automationParams?.initialAngle || 0}
+                                onChange={(e) => onUpdate({ automationParams: { ...editorState.automationParams, initialAngle: Number(e.target.value) } })}
+                                className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                            />
+                        </div>
                     </div>
                 )}
 
