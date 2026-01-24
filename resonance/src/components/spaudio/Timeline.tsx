@@ -140,76 +140,85 @@ export default function Timeline({
                     className="flex-1 overflow-auto relative custom-scrollbar bg-gray-900"
                 >
                     <div style={{ width: Math.max(totalDuration * zoom + 500, typeof window !== 'undefined' ? window.innerWidth : 1000) }} className="relative h-full">
+                        {(() => {
+                            const containerWidth = Math.max(totalDuration * zoom + 500, typeof window !== 'undefined' ? window.innerWidth : 1000);
+                            const totalTicks = Math.ceil(containerWidth / zoom);
 
-                        {/* Ruler */}
-                        <div
-                            className="h-8 border-b border-gray-800 bg-gray-900/80 sticky top-0 z-10 cursor-pointer"
-                            onClick={handleRulerClick}
-                        >
-                            {Array.from({ length: Math.ceil(totalDuration + 10) }).map((_, i) => (
-                                <div key={i} className="absolute bottom-0 border-l border-gray-700 h-3 text-[9px] text-gray-500 pl-1" style={{ left: i * zoom }}>
-                                    {i}s
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Tracks */}
-                        <div className="relative">
-                            {/* Playhead Line */}
-                            <div
-                                className="absolute top-0 bottom-0 w-px bg-red-500 z-30 pointer-events-none"
-                                style={{ left: currentTime * zoom, height: sources.length * 48 }} // 48px per track
-                            >
-                                <div className="w-3 h-3 bg-red-500 transform -translate-x-1.5 rotate-45 -mt-1.5" />
-                            </div>
-
-                            {sources.map((source, index) => {
-                                const width = (source.timelineDuration || 10) * zoom;
-                                const left = source.timelineStart * zoom;
-
-                                return (
-                                    <div key={source.id} className="h-12 border-b border-gray-800 relative group bg-gray-900/30">
-                                        {/* Grid Lines */}
-                                        {Array.from({ length: Math.ceil(totalDuration + 10) }).map((_, i) => (
-                                            <div key={i} className="absolute top-0 bottom-0 border-l border-gray-800/30 pointer-events-none" style={{ left: i * zoom }} />
-                                        ))}
-
-                                        {/* Clip */}
-                                        <div
-                                            className="absolute top-2 bottom-2 rounded-md overflow-hidden cursor-move border border-white/10 group-hover:border-white/30 transition-colors"
-                                            style={{
-                                                left,
-                                                width,
-                                                backgroundColor: source.color + '40', // 25% opacity
-                                            }}
-                                            onMouseDown={(e) => {
-                                                e.stopPropagation();
-                                                setDraggingId(source.id);
-                                                setDragStartX(e.clientX);
-                                                setInitialStart(source.timelineStart);
-                                            }}
-                                        >
-                                            <div className="w-full h-full flex items-center px-2">
-                                                <span className="text-[10px] font-bold text-white/90 truncate drop-shadow-md select-none pointer-events-none">
-                                                    {source.name}
-                                                </span>
+                            return (
+                                <>
+                                    {/* Ruler */}
+                                    <div
+                                        className="h-8 border-b border-gray-800 bg-gray-900/80 sticky top-0 z-10 cursor-pointer"
+                                        onClick={handleRulerClick}
+                                    >
+                                        {Array.from({ length: totalTicks }).map((_, i) => (
+                                            <div key={i} className="absolute bottom-0 border-l border-gray-700 h-3 text-[9px] text-gray-500 pl-1" style={{ left: i * zoom }}>
+                                                {i}s
                                             </div>
-
-                                            {/* Resize Handle (Right) */}
-                                            <div
-                                                className="absolute top-0 bottom-0 right-0 w-2 cursor-e-resize hover:bg-white/20 active:bg-white/40 z-10"
-                                                onMouseDown={(e) => {
-                                                    e.stopPropagation();
-                                                    setResizingId(source.id);
-                                                    setDragStartX(e.clientX);
-                                                    setInitialDuration(source.timelineDuration || 10);
-                                                }}
-                                            />
-                                        </div>
+                                        ))}
                                     </div>
-                                );
-                            })}
-                        </div>
+
+                                    {/* Tracks */}
+                                    <div className="relative">
+                                        {/* Playhead Line */}
+                                        <div
+                                            className="absolute top-0 bottom-0 w-px bg-red-500 z-30 pointer-events-none"
+                                            style={{ left: currentTime * zoom, height: sources.length * 48 }} // 48px per track
+                                        >
+                                            <div className="w-3 h-3 bg-red-500 transform -translate-x-1.5 rotate-45 -mt-1.5" />
+                                        </div>
+
+                                        {sources.map((source, index) => {
+                                            const width = (source.timelineDuration || 10) * zoom;
+                                            const left = source.timelineStart * zoom;
+
+                                            return (
+                                                <div key={source.id} className="h-12 border-b border-gray-800 relative group bg-gray-900/30">
+                                                    {/* Grid Lines */}
+                                                    {Array.from({ length: totalTicks }).map((_, i) => (
+                                                        <div key={i} className="absolute top-0 bottom-0 border-l border-gray-800/30 pointer-events-none" style={{ left: i * zoom }} />
+                                                    ))}
+
+
+                                                    {/* Clip */}
+                                                    <div
+                                                        className="absolute top-2 bottom-2 rounded-md overflow-hidden cursor-move border border-white/10 group-hover:border-white/30 transition-colors"
+                                                        style={{
+                                                            left,
+                                                            width,
+                                                            backgroundColor: source.color + '40', // 25% opacity
+                                                        }}
+                                                        onMouseDown={(e) => {
+                                                            e.stopPropagation();
+                                                            setDraggingId(source.id);
+                                                            setDragStartX(e.clientX);
+                                                            setInitialStart(source.timelineStart);
+                                                        }}
+                                                    >
+                                                        <div className="w-full h-full flex items-center px-2">
+                                                            <span className="text-[10px] font-bold text-white/90 truncate drop-shadow-md select-none pointer-events-none">
+                                                                {source.name}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Resize Handle (Right) */}
+                                                        <div
+                                                            className="absolute top-0 bottom-0 right-0 w-2 cursor-e-resize hover:bg-white/20 active:bg-white/40 z-10"
+                                                            onMouseDown={(e) => {
+                                                                e.stopPropagation();
+                                                                setResizingId(source.id);
+                                                                setDragStartX(e.clientX);
+                                                                setInitialDuration(source.timelineDuration || 10);
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            );
+                        })()}
                     </div>
                 </div>
             </div>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Export Repro</title>
+</head>
+<body>
+    <h1>Audio Export Repro</h1>
+    <button id="runBtn">Run Test</button>
+    <div id="status">Ready</div>
+    <script>
+        async function run() {
+            try {
+                document.getElementById('status').innerText = "Generating Source Audio...";
+                
+                // 1. Create a Beep using AudioContext -> MediaStream -> Recorder -> Blob
+                const ctx = new AudioContext(); // Requires user gesture usually?
+                const osc = ctx.createOscillator();
+                osc.frequency.value = 440;
+                const dest = ctx.createMediaStreamDestination();
+                osc.connect(dest);
+                
+                const recorder = new MediaRecorder(dest.stream);
+                const chunks = [];
+                recorder.ondataavailable = e => chunks.push(e.data);
+                
+                osc.start();
+                recorder.start();
+                
+                await new Promise(r => setTimeout(r, 500)); // 0.5s beep
+                
+                recorder.stop();
+                osc.stop();
+                
+                await new Promise(r => recorder.onstop = r);
+                ctx.close();
+                
+                const sourceBlob = new Blob(chunks, { type: 'audio/webm' });
+                const sourceUrl = URL.createObjectURL(sourceBlob);
+                console.log("Source Blob URL:", sourceUrl);
+                
+                document.getElementById('status').innerText = "Rendering Offline...";
+
+                // 2. Render using OfflineAudioContext reading that Blob URL
+                const offlineCtx = new OfflineAudioContext(1, 44100 * 1, 44100);
+                
+                // Fetch the blob
+                const response = await fetch(sourceUrl);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
+                
+                const srcWithBuffer = offlineCtx.createBufferSource();
+                srcWithBuffer.buffer = audioBuffer;
+                srcWithBuffer.connect(offlineCtx.destination);
+                srcWithBuffer.start(0);
+                
+                const renderedBuffer = await offlineCtx.startRendering();
+                
+                // 3. Analyze
+                const channelData = renderedBuffer.getChannelData(0);
+                let maxVal = 0;
+                for(let i=0; i<channelData.length; i++) {
+                     maxVal = Math.max(maxVal, Math.abs(channelData[i]));
+                }
+                
+                console.log("Max Value:", maxVal);
+                if (maxVal > 0.01) {
+                    document.getElementById('status').innerText = "SUCCESS: Audio Detected (Max: " + maxVal.toFixed(4) + ")";
+                } else {
+                    document.getElementById('status').innerText = "FAILURE: Output Silent";
+                }
+                
+            } catch (e) {
+                console.error(e);
+                document.getElementById('status').innerText = "ERROR: " + e.message;
+            }
+        }
+        
+        document.getElementById('runBtn').onclick = run;
+    </script>
+</body>
+</html>

@@ -19,8 +19,10 @@ import { createClient } from '@/utils/supabase/client';
 import ThinkingPanel from './ThinkingPanel';
 import AutoFoleyModal from './AutoFoleyModal';
 import { findBestAssetMatch } from '@/lib/assetLibrary';
-import { exportProjectToIAMF } from '@/actions/export';
+
 import { generateSpatialSceneAction, analyzeVideoAction } from '@/actions/gemini';
+import { renderTimelineToWav } from '@/utils/audioExport';
+import { saveAudioFile, getFileUrl, getAudioFile } from '@/utils/indexedDB';
 
 
 export default function SpatialAudioEditor({ projectId }: { projectId?: string }) {
@@ -122,6 +124,14 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
     useEffect(() => {
         // Force PRO state for demo
         setIsPro(true);
+    }, []);
+
+    useEffect(() => {
+        const checkAuth = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) setCurrentUserId(user.id);
+        };
+        checkAuth();
     }, []);
 
     useEffect(() => {
@@ -796,8 +806,21 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
         }
     };
 
-    const handleSelectLibraryFile = async (url: string, size: number, name: string) => {
+    const handleSelectLibraryFile = async (url: string | null, size: number, name: string, id?: string) => {
         if (!activeSourceId) return;
+
+        // If no URL but we have ID, try to get it (Persistence recovery path)
+        if (!url && id) {
+            const fileRecord = await getAudioFile(id);
+            if (fileRecord) {
+                url = getFileUrl(fileRecord.blob);
+            } else {
+                console.error("File not found in DB:", id);
+                return;
+            }
+        }
+
+        if (!url) return;
 
         // Check limits (File count check skipped as we are assigning to existing source usually, 
         // but if we were creating new source we would check. Here we assume assigning to active source).
@@ -816,6 +839,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
         source.fileSize = size;
         source.fileUrl = url;
+        source.indexedDbId = id; // Save persistence ID
         source.sourceType = 'file';
 
         // Update name if default
@@ -825,10 +849,11 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
         }
 
         // Load Audio
-        // Cache Busting: Ensure we don't load stale cache if file was deleted/re-uploaded
         source.audioElement.crossOrigin = "anonymous";
-        source.audioElement.onerror = () => {
-            console.error("Failed to load audio file");
+        source.audioElement.onerror = (e) => {
+            console.error("Failed to load audio file:", source.audioElement.src);
+            console.error("MediaError:", source.audioElement.error);
+            console.error("Event:", e);
             source.error = "missing"; // Set error state
             syncSourceList();
         };
@@ -836,8 +861,15 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
             source.error = undefined; // Clear error
             syncSourceList();
         };
-        source.audioElement.src = url + `?t=${Date.now()}`;
-        source.audioElement.load(); // Important for remote urls?
+
+        // Cache Busting: Only for remote URLs, NOT blob URLs
+        if (url.startsWith('blob:')) {
+            source.audioElement.src = url;
+        } else {
+            source.audioElement.src = url + `?t=${Date.now()}`;
+        }
+
+        source.audioElement.load();
 
         updateActiveSource({ sourceType: 'file' });
 
@@ -848,74 +880,71 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
     };
 
     const handleLibraryUploadNew = async (file: File) => {
-        if (!currentUserId) return;
+        // We only require a file, no auth check needed for local.
+        if (!file) return null;
 
-        // Check Account Limits
-        // Check Account Limits - Skipped for demo
-        const currentTotalSizeMB = accountUsage.usedBytes / (1024 * 1024);
-        const newFileSizeMB = file.size / (1024 * 1024);
-        const storageCheck = subscriptionManager.canUploadFile(currentTotalSizeMB, newFileSizeMB);
-        // Skipped storage check
+        try {
+            const savedRecord = await saveAudioFile(file);
+            const publicUrl = getFileUrl(savedRecord.blob);
 
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${currentUserId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-
-        const { data, error } = await supabase.storage
-            .from('audio-files')
-            .upload(fileName, file);
-
-        if (error) throw error;
-
-        // Increment Account Usage - Skipped for demo
-
-        fetchAccountUsage();
+            return {
+                url: publicUrl,
+                size: savedRecord.size,
+                name: savedRecord.name,
+                id: savedRecord.id // <--- Return ID
+            };
+        } catch (e: any) {
+            console.error("Failed to save to IndexedDB:", e);
+            throw e;
+        }
     };
 
     // --- IAMF Export (Server-Side) ---
+    // --- Audio Export (Client-Side Offline Render) ---
     const startRecording = async () => {
-        console.log("Starting IAMF Export...");
+        console.log("Starting Audio Export...");
         setIsRecording(true);
-        setAiStatus("Exporting IAMF...");
+        setAiStatus("Preparing Export...");
 
         try {
-            // Prepare Project Data
-            const projectData = {
-                name: "Resonance Project",
-                sources: sourcesList.map(s => ({
-                    id: s.id,
-                    name: s.name,
-                    position: s.position,
-                    volume: s.volume,
-                    sourceType: s.sourceType,
-                    // Use URL if available (public assets), otherwise blob url (might fail on server)
-                    url: s.audioElement?.src || '',
-                    timelineStart: s.timelineStart,
-                    timelineDuration: s.timelineDuration
-                }))
-            };
+            // Prepare Sources Data - use audioElement.src as the source of truth for URLs
+            const exportSources = sourcesRef.current.map(s => ({
+                id: s.id,
+                name: s.name,
+                position: { ...s.position },
+                volume: s.volume,
+                timelineStart: s.timelineStart,
+                timelineDuration: s.timelineDuration || 10,
+                automationType: s.automationType,
+                automationParams: { ...s.automationParams },
+                sourceType: s.sourceType,
+                // Use audioElement.src as the actual playing URL (works for both blob and remote URLs)
+                fileUrl: s.audioElement?.src || s.fileUrl || null
+            } as SourceData));
 
-            const result = await exportProjectToIAMF(projectData);
+            setAiStatus("Rendering...");
 
-            if (result.success && result.downloadUrl) {
-                console.log("Export success, downloading:", result.downloadUrl);
-                setAiStatus("Download Ready");
+            const wavBlob = await renderTimelineToWav(
+                exportSources,
+                totalDuration,
+                (msg) => setAiStatus(msg)
+            );
 
-                // Trigger Download
-                const link = document.createElement('a');
-                link.href = result.downloadUrl;
-                link.download = `resonance_export_${Date.now()}.iamf`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            } else {
-                console.error("Export failed:", result.error);
-                setAiStatus("Export Failed");
-                alert(`Export Failed: ${result.error}`);
-            }
+            // Trigger Download
+            const url = URL.createObjectURL(wavBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `resonance_export_${Date.now()}.wav`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            setAiStatus("Export Complete");
 
         } catch (err: any) {
             console.error("Export Error:", err);
-            setAiStatus("Error");
+            setAiStatus("Export Failed");
             alert(`Export Error: ${err.message}`);
         } finally {
             setIsRecording(false);
@@ -1003,10 +1032,45 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
             view.setInt16(offset, sR < 0 ? sR * 0x8000 : sR * 0x7FFF, true);
             offset += 2;
         }
-
         const blob = new Blob([view], { type: 'audio/wav' });
         downloadBlob(blob, 'spatial_scene_pro.wav');
     };
+
+    // --- Auto-Save Logic ---
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'unsaved'>('idle');
+    const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Watch for changes that require saving
+    useEffect(() => {
+        if (!projectId) return;
+
+        // Skip initial load or extraneous updates if needed
+        // but for now, any change to these dependencies means user intent changed.
+
+        // Don't save if we are just playing back
+        if (isPlayingRef.current) return;
+
+        setSaveStatus('unsaved');
+
+        if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+
+        autoSaveTimeoutRef.current = setTimeout(() => {
+            saveProject();
+        }, 2000); // 2 second debounce
+
+        return () => {
+            if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+        sourcesList,
+        editorState.x, editorState.y, editorState.z,
+        editorState.vol, editorState.name,
+        editorState.timelineStart, editorState.timelineDuration,
+        editorState.automationType, editorState.automationParams
+        // Note: We exclude isPlaying, currentTime from deps
+    ]);
+
 
     // --- Save / Load ---
     const saveProject = async () => {
@@ -1022,19 +1086,17 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                 automationType: s.automationType,
                 automationParams: s.automationParams,
                 sourceType: s.sourceType,
-                // We can't save audio buffers or elements easily, 
-                // so we rely on recreating them or just saving metadata for now.
-                // For MVP, we assume user re-uploads or we store file URLs if we had storage.
-                // Since we don't have storage for files yet, we just save the structure.
-                fileUrl: s.fileUrl // Save the cloud URL
+                fileUrl: s.fileUrl,
+                indexedDbId: s.indexedDbId // <--- Save ID
             })),
             editorState
         };
 
         if (projectId) {
             try {
+                setSaveStatus('saving');
                 setAiStatus("Saving...");
-                supabase
+                await supabase
                     .from('projects')
                     .update({
                         data: data,
@@ -1043,10 +1105,15 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                     .eq('id', projectId);
 
                 console.log("Project saved successfully!");
-                setAiStatus("Project Saved");
+                setSaveStatus('saved');
+                setAiStatus("Saved");
+
+                // Clear "Saved" status after a while to be clean, or keep it?
+                // Standard is usually 'Saved' stays until change. 
                 setTimeout(() => setAiStatus(""), 2000);
             } catch (err) {
                 console.error("Save failed:", err);
+                setSaveStatus('error');
                 setAiStatus("Save Failed");
             }
         } else {
@@ -1086,19 +1153,43 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
                 // Restore audio from URL
                 // Restore audio from URL
-                if (s.sourceType === 'file' && s.fileUrl) {
-                    s.audioElement.crossOrigin = "anonymous";
-                    s.audioElement.onerror = (e) => {
-                        s.error = "missing";
-                        syncSourceList();
-                    };
-                    s.audioElement.onloadeddata = () => {
-                        s.error = undefined;
-                        syncSourceList();
-                    };
-                    const separator = s.fileUrl.includes('?') ? '&' : '?';
-                    s.audioElement.src = s.fileUrl + `${separator}t=${Date.now()}`;
-                    s.audioElement.load();
+                if (s.sourceType === 'file') {
+                    // Logic to restore from IndexedDB if possible
+                    if (sData.indexedDbId) {
+                        // Async restoration handled by a separate checks? 
+                        // We can't await here easily inside forEach without Promise.all
+                        // Better to trigger a floating promise/effect or just do it here carefully.
+                        // We'll mark it as loading or similar?
+                        s.indexedDbId = sData.indexedDbId;
+                        getAudioFile(s.indexedDbId!).then(record => {
+                            if (record) {
+                                const url = getFileUrl(record.blob);
+                                s.fileUrl = url;
+                                s.audioElement.src = url;
+                                s.audioElement.load();
+                                syncSourceList();
+                                console.log("Restored audio from IndexedDB:", s.name);
+                            } else {
+                                console.warn("Failed to find file in IndexedDB:", sData.indexedDbId);
+                                s.error = "missing";
+                                syncSourceList();
+                            }
+                        });
+                    } else if (s.fileUrl) {
+                        // Legacy blob or Remote URL
+                        s.audioElement.crossOrigin = "anonymous";
+                        s.audioElement.onerror = (e) => {
+                            s.error = "missing";
+                            syncSourceList();
+                        };
+                        s.audioElement.onloadeddata = () => {
+                            s.error = undefined;
+                            syncSourceList();
+                        };
+                        const separator = s.fileUrl.includes('?') ? '&' : '?';
+                        s.audioElement.src = s.fileUrl + `${separator}t=${Date.now()}`;
+                        s.audioElement.load();
+                    }
                 }
 
                 // Re-init audio - this should now always work since we called initGlobalAudio
@@ -1122,6 +1213,8 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
         }
 
         syncSourceList();
+        // Reset save status after load
+        setSaveStatus('saved');
     };
 
 
@@ -1254,23 +1347,44 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                 console.log("Applying Filter Scene:", data.data);
                 if (data.data.sources) {
                     const newSources = data.data.sources;
+                    let maxTime = totalDuration;
                     newSources.forEach((sData: any) => {
                         const assetUrl = mapSemanticToAsset(sData.semanticTag || sData.name);
                         addSource('generated', sData.position.x, sData.position.y, sData.position.z, sData.name, assetUrl);
 
                         const addedSource = sourcesRef.current[sourcesRef.current.length - 1];
-                        if (addedSource && sData.trajectory) {
-                            if (sData.trajectory === 'linear_forward') {
-                                addedSource.automationType = 'linear';
-                                addedSource.automationParams = { targetPos: { x: sData.position.x, y: 0, z: 5 } };
-                                addedSource.updateAutomation();
-                            } else if (sData.trajectory === 'orbit') {
-                                addedSource.automationType = 'orbit';
-                                addedSource.automationParams = { radius: 3, speed: 0.5 };
-                                addedSource.updateAutomation();
+                        if (addedSource) {
+                            // Map Timeline Data
+                            if (typeof sData.timelineStart === 'number') {
+                                addedSource.timelineStart = sData.timelineStart;
+                            }
+                            // Default duration if missing
+                            addedSource.timelineDuration = typeof sData.timelineDuration === 'number' ? sData.timelineDuration : 5;
+
+                            // Track Max Time
+                            maxTime = Math.max(maxTime, addedSource.timelineStart + (addedSource.timelineDuration || 5));
+
+                            if (sData.trajectory) {
+                                if (sData.trajectory === 'linear_forward') {
+                                    addedSource.automationType = 'linear';
+                                    addedSource.automationParams = { targetPos: { x: sData.position.x, y: 0, z: 5 } };
+                                    addedSource.updateAutomation();
+                                } else if (sData.trajectory === 'orbit') {
+                                    addedSource.automationType = 'orbit';
+                                    addedSource.automationParams = { radius: 3, speed: 0.5 };
+                                    addedSource.updateAutomation();
+                                }
                             }
                         }
                     });
+
+                    // Update Total Duration to fit new content + buffer
+                    if (maxTime > totalDuration) {
+                        setTotalDuration(maxTime + 5);
+                    }
+
+                    // Sync list once after all updates
+                    syncSourceList();
                 }
                 setAiStatus("Complete");
                 setThinkingSteps(prev => [...prev, { id: 'done', text: 'Auto-Foley Complete.', type: 'action', timestamp: Date.now() }]);
@@ -1303,7 +1417,22 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
             </div>
 
             {/* Top Right Controls */}
-            <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+            <div className="absolute top-4 right-4 z-20 flex items-center gap-3">
+                {/* Save Status Indicator */}
+                {saveStatus !== 'idle' && (
+                    <div className={`text-[10px] font-medium px-2 py-1 rounded bg-black/50 backdrop-blur border 
+                        ${saveStatus === 'saving' ? 'text-yellow-400 border-yellow-500/50' : ''}
+                        ${saveStatus === 'saved' ? 'text-green-400 border-green-500/50' : ''}
+                        ${saveStatus === 'unsaved' ? 'text-gray-400 border-gray-500/50' : ''}
+                        ${saveStatus === 'error' ? 'text-red-400 border-red-500/50' : ''}
+                    `}>
+                        {saveStatus === 'saving' && 'Saving...'}
+                        {saveStatus === 'saved' && 'Saved'}
+                        {saveStatus === 'unsaved' && 'Unsaved Changes'}
+                        {saveStatus === 'error' && 'Save Error'}
+                    </div>
+                )}
+
                 <AuthButton />
                 <div className="bg-gray-100 dark:bg-gray-800 text-yellow-700 dark:text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded text-[10px] font-bold cursor-default">
                     DEMO UNLIMITED

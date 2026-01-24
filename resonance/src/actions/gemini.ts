@@ -7,7 +7,7 @@ import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
 
 // Model Definitions
-const PRIMARY_MODEL = "gemini-2.5-flash-lite";
+const PRIMARY_MODEL = "gemini-3-flash-preview";
 const FALLBACK_MODEL = "gemini-2.0-flash-lite";
 
 /**

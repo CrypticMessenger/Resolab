@@ -1,31 +1,16 @@
+
 import React, { useEffect, useState } from 'react';
-import { createClient } from '@/utils/supabase/client';
 import { X, Upload, Trash2, Music, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { listAudioFiles, deleteAudioFile, AudioFileRecord, getFileUrl } from '@/utils/indexedDB';
 
 interface MediaLibraryModalProps {
     isOpen: boolean;
     onClose: () => void;
     userId: string;
-    onSelectFile: (url: string, fileSize: number, fileName: string) => void;
-    onUploadNew: (file: File) => Promise<void>;
+    onSelectFile: (url: string, fileSize: number, fileName: string, id: string) => void;
+    onUploadNew: (file: File) => Promise<{ url: string, size: number, name: string, id: string } | null | void>;
     onStorageUpdate?: () => void;
-}
-
-interface StorageFile {
-    name: string;
-    id: string;
-    updated_at: string;
-    created_at: string;
-    last_accessed_at: string;
-    metadata: {
-        eTag: string;
-        size: number;
-        mimetype: string;
-        cacheControl: string;
-        contentLength: number;
-        httpStatusCode: number;
-    };
 }
 
 export default function MediaLibraryModal({
@@ -36,34 +21,21 @@ export default function MediaLibraryModal({
     onUploadNew,
     onStorageUpdate
 }: MediaLibraryModalProps) {
-    const supabase = createClient();
-    const [files, setFiles] = useState<StorageFile[]>([]);
+    const [files, setFiles] = useState<AudioFileRecord[]>([]);
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
 
     useEffect(() => {
-        if (isOpen && userId) {
+        if (isOpen) {
             fetchFiles();
         }
-    }, [isOpen, userId]);
+    }, [isOpen]);
 
     const fetchFiles = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
-                .storage
-                .from('audio-files')
-                .list(userId + '/', {
-                    limit: 100,
-                    offset: 0,
-                    sortBy: { column: 'name', order: 'asc' },
-                });
-
-            if (error) {
-                console.error('Error fetching files:', error);
-            } else {
-                setFiles(data as unknown as StorageFile[] || []);
-            }
+            const records = await listAudioFiles();
+            setFiles(records);
         } catch (err) {
             console.error('Fetch error:', err);
         } finally {
@@ -71,40 +43,24 @@ export default function MediaLibraryModal({
         }
     };
 
-    const handleFileSelect = async (file: StorageFile) => {
-        // Get public URL
-        const { data: { publicUrl } } = supabase
-            .storage
-            .from('audio-files')
-            .getPublicUrl(`${userId}/${file.name}`);
-
-        onSelectFile(publicUrl, file.metadata.size, file.name);
+    const handleFileSelect = async (file: AudioFileRecord) => {
+        // Create a blob URL for the file
+        const url = getFileUrl(file.blob);
+        onSelectFile(url, file.size, file.name, file.id);
         onClose();
     };
 
-    const handleDelete = async (file: StorageFile, e: React.MouseEvent) => {
+    const handleDelete = async (file: AudioFileRecord, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!confirm('⚠️ WARNING: This file may be used in other projects.\n\nDeleting it will cause those projects to report missing files. Are you sure you want to permanently delete this file?')) return;
+        if (!confirm('Are you sure you want to delete this file from local storage?')) return;
 
-        const path = `${userId}/${file.name}`;
-
-        const { data, error } = await supabase
-            .storage
-            .from('audio-files')
-            .remove([path]);
-
-        if (!error && data && data.length > 0) {
-            // Decrement Storage
-            await supabase.rpc('decrement_storage', {
-                bytes: file.metadata.size,
-                file_count: 1
-            });
+        try {
+            await deleteAudioFile(file.id);
+            setFiles(prev => prev.filter(f => f.id !== file.id));
             if (onStorageUpdate) onStorageUpdate();
-
-            setFiles(prev => prev.filter(f => f.name !== file.name));
-        } else {
-            console.error("Delete failed or returned empty data:", error, data);
-            alert('Failed to delete file from server. (Check console for details)');
+        } catch (error) {
+            console.error("Delete failed:", error);
+            alert('Failed to delete file.');
         }
     };
 
@@ -114,22 +70,18 @@ export default function MediaLibraryModal({
 
         setUploading(true);
         try {
-            await onUploadNew(file);
-            // Increment is done in onUploadNew logic (which is passed from parent) OR here? 
-            // Wait, handleLibraryUploadNew in Editor is what is passed as onUploadNew.
-            // Let's check Editor logic for handleLibraryUploadNew. 
-            // It currently only does storage.upload. It needs to do increment too.
-            // BETTER: Do the increment HERE if onUploadNew is just the storage upload wrapper. 
-            // BUT onUploadNew in Editor is cleaner to keep logic centrally? 
-            // Actually, let's update handleLibraryUploadNew in Editor to do the increment as well.
-            // So we just need to call onStorageUpdate here.
+            const uploadedFile = await onUploadNew(file);
 
             await fetchFiles(); // Refresh list
+
+            // Auto-Select the new file
+            if (uploadedFile) {
+                onSelectFile(uploadedFile.url, uploadedFile.size, uploadedFile.name, uploadedFile.id);
+                onClose();
+            }
+
             if (onStorageUpdate) onStorageUpdate();
         } catch (error: any) {
-            // Ignore limit errors (handled by modal)
-            if (error.message === "LIMIT_REACHED") return;
-
             console.error("Upload process failed in modal:", error);
         } finally {
             setUploading(false);
@@ -149,8 +101,8 @@ export default function MediaLibraryModal({
                 {/* Header */}
                 <div className="p-5 border-b border-gray-200 dark:border-white/5 flex justify-between items-center bg-gray-50/50 dark:bg-white/5">
                     <div>
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white">Media Library</h2>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Manage audio files for this project</p>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white">Local Audio Library</h2>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Files stored in your browser (IndexedDB)</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition">
                         <X size={18} />
@@ -166,7 +118,7 @@ export default function MediaLibraryModal({
                     ) : files.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-40 text-gray-400 gap-3">
                             <Music size={40} className="opacity-20" />
-                            <p>No files uploaded yet.</p>
+                            <p>No files saved locally.</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -175,18 +127,19 @@ export default function MediaLibraryModal({
                                     key={file.id}
                                     onClick={() => handleFileSelect(file)}
                                     className="group relative flex items-center gap-3 p-3 rounded-xl border border-gray-200 dark:border-white/5 bg-gray-50 dark:bg-white/5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:border-indigo-500/30 transition cursor-pointer"
+                                    title="Click to select"
                                 >
                                     <div className="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                                         <Music size={18} />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium truncate text-gray-900 dark:text-gray-100">{file.name}</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">{(file.metadata.size / 1024 / 1024).toFixed(2)} MB</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                                     </div>
                                     <button
                                         onClick={(e) => handleDelete(file, e)}
                                         className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition"
-                                        title="Delete file"
+                                        title="Delete from local storage"
                                     >
                                         <Trash2 size={16} />
                                     </button>
@@ -207,12 +160,12 @@ export default function MediaLibraryModal({
                         {uploading ? (
                             <>
                                 <Loader2 size={18} className="animate-spin" />
-                                <span>Uploading...</span>
+                                <span className="animate-pulse">Saving to Browser...</span>
                             </>
                         ) : (
                             <>
                                 <Upload size={18} />
-                                <span>Upload New Audio File</span>
+                                <span className="font-bold">Import Audio File</span>
                                 <input
                                     type="file"
                                     accept="audio/*"

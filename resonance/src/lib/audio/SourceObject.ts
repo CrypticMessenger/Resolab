@@ -23,6 +23,7 @@ export class SourceObject {
     buffer: AudioBuffer | null = null;
     fileUrl: string | null = null; // URL for remote storage
     fileSize: number = 0; // Size in bytes
+    indexedDbId?: string; // Persistent ID from IndexedDB
     error?: string; // Error state
 
     get hasTrajectory(): boolean {
