@@ -24,6 +24,7 @@ import { generateSpatialSceneAction, analyzeVideoAction } from '@/actions/gemini
 import { renderTimelineToWav, ExportSettings } from '@/utils/audioExport';
 import { saveAudioFile, getFileUrl, getAudioFile } from '@/utils/indexedDB';
 import ExportSettingsModal from './spaudio/ExportSettingsModal';
+import { generateImpulseResponse } from '@/utils/reverbUtils';
 
 
 export default function SpatialAudioEditor({ projectId }: { projectId?: string }) {
@@ -65,6 +66,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
     const [promptInput, setPromptInput] = useState('');
     const [showLibrary, setShowLibrary] = useState(false);
     const [showExportSettings, setShowExportSettings] = useState(false);
+    const [reverbGlobal, setReverbGlobal] = useState(0); // Default 0 as requested
 
     // Account Usage State
     const [accountUsage, setAccountUsage] = useState({ usedBytes: 0, fileCount: 0 });
@@ -391,7 +393,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
     }, [projectId]);
 
     // --- Audio Logic ---
-    const initGlobalAudio = () => {
+    const initGlobalAudio = async () => {
         if (audioCtxRef.current) return;
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
         const ctx = new AudioContext();
@@ -403,21 +405,19 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
         const reverb = ctx.createConvolver();
         const revGain = ctx.createGain();
-        revGain.gain.value = 0.1;
+        revGain.gain.value = 0; // Default off to match state
         reverb.connect(revGain);
         revGain.connect(mainGain);
         reverbNodeRef.current = reverb;
         reverbGainRef.current = revGain;
 
-        // Impulse Response
-        const length = ctx.sampleRate * 2;
-        const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
-        for (let i = 0; i < length; i++) {
-            const decay = Math.pow(1 - i / length, 2);
-            impulse.getChannelData(0)[i] = (Math.random() * 2 - 1) * decay;
-            impulse.getChannelData(1)[i] = (Math.random() * 2 - 1) * decay;
+        // High Quality Impulse Response
+        try {
+            const buffer = await generateImpulseResponse(ctx, 3.0, 2.5, 0.4); // Longer, warmer
+            reverb.buffer = buffer;
+        } catch (e) {
+            console.error("Failed to generate reverb IR", e);
         }
-        reverb.buffer = impulse;
     };
 
     const syncSourceList = () => {
@@ -949,7 +949,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                 exportSources,
                 exportDuration,
                 (msg) => setAiStatus(msg),
-                settings
+                { ...settings, reverbLevel: reverbGlobal }
             );
 
             // Trigger Download
@@ -1148,19 +1148,37 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
     };
 
     const loadProject = (data: any) => {
+        // Handle Legacy Format (Array of sources) vs New Format (Object with global)
+        const sourcesData = Array.isArray(data) ? data : (data.sources || []);
+        const globalData = !Array.isArray(data) ? data.global : null;
+
         // Ensure audio context exists before restoring sources
         initGlobalAudio();
 
+        // Restore Global Settings
+        if (globalData && globalData.reverbGain !== undefined) {
+            setReverbGlobal(globalData.reverbGain);
+            if (reverbGainRef.current) reverbGainRef.current.gain.value = globalData.reverbGain;
+        } else {
+            // Legacy project: Default to 0 and SYNC ENGINE
+            setReverbGlobal(0);
+            if (reverbGainRef.current) reverbGainRef.current.gain.value = 0;
+        }
+
         // Clear existing
         sourcesRef.current.forEach(s => {
-            if (sceneRef.current) sceneRef.current.remove(s.mesh);
+            if (sceneRef.current) {
+                sceneRef.current.remove(s.mesh);
+                sceneRef.current.remove(s.targetMesh);
+                sceneRef.current.remove(s.trajectoryLine);
+            }
             s.stop();
         });
         sourcesRef.current = [];
 
         // Load new
-        if (data.sources) {
-            data.sources.forEach((sData: any) => {
+        if (sourcesData) {
+            sourcesData.forEach((sData: any) => {
                 const color = new THREE.Color(sData.color);
                 const s = new SourceObject(sData.id, sData.name, color);
                 // Use updatePosition to sync mesh and panner immediately
@@ -1486,6 +1504,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                 onLoad={loadProject}
                 onReverbChange={(val) => {
                     if (reverbGainRef.current) reverbGainRef.current.gain.value = val;
+                    setReverbGlobal(val);
                 }}
                 onDeleteSource={deleteSource}
                 onOpenLibrary={() => setShowLibrary(true)}

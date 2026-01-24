@@ -1,5 +1,6 @@
 
 import { SourceData } from '@/types/spaudio';
+import { generateImpulseResponse } from './reverbUtils';
 
 // Helper to calculate position based on automation
 // Duplicates logic from SourceObject to avoid class instantiation dependencies
@@ -59,6 +60,7 @@ function writeString(view: DataView, offset: number, string: string) {
 export type ExportSettings = {
     sampleRate: number;
     bitDepth: 16 | 24 | 32;
+    reverbLevel?: number; // Optional gain (0-1)
 };
 
 export async function renderTimelineToWav(
@@ -114,13 +116,36 @@ export async function renderTimelineToWav(
                 // Decode audio data (will resample to context sample rate if needed)
                 const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
                 bufferMap.set(source.fileUrl, audioBuffer);
-                console.log(`Loaded: ${source.name}`);
+                console.log(`Loaded: ${source.name || "Unknown Asset"}`);
             } catch (e) {
                 console.error(`Failed to load ${source.fileUrl}`, e);
                 onProgress(`Error loading: ${source.name || "Unknown Asset"}`);
             }
         }
     }
+
+    // ... inside renderTimelineToWav ...
+
+    // 2.5 Setup Global Reverb Bus
+    // Create Reverb Node
+    const reverbNode = ctx.createConvolver();
+    // Generate IR synchronously-ish (await works in offline ctx setup phase)
+    try {
+        const irBuffer = await generateImpulseResponse(ctx, 3.0, 2.5, 0.4);
+        reverbNode.buffer = irBuffer;
+    } catch (e) {
+        console.warn("Export reverb generation failed", e);
+    }
+
+    const reverbGain = ctx.createGain();
+    reverbGain.gain.value = settings.reverbLevel !== undefined ? settings.reverbLevel : 0.1;
+    // TODO: Pass actual reverb level from EditorState or a new param. 
+    // For now hardcode 0.1 matching default editor state, OR allow user to set?
+    // User sets Global Reverb Level in Editor. We should pass it.
+
+    // Connect Reverb to Destination
+    reverbNode.connect(reverbGain);
+    reverbGain.connect(ctx.destination);
 
     onProgress("Scheduling timeline...");
 
@@ -147,6 +172,16 @@ export async function renderTimelineToWav(
         srcNode.connect(panner);
         panner.connect(gain);
         gain.connect(ctx.destination);
+
+        // Reverb Send (After Panner, mimicking editor flow)
+        // Editor flow: Source -> panner -> reverbGain -> reverb -> mainGain
+        // Wait, Editor flow in initGlobalAudio was:
+        // reverb -> revGain -> mainGain.
+        // And Source initAudio: panner.connect(mainGain); panner.connect(reverbNode);
+        // So yes, it's a send.
+        panner.connect(reverbNode);
+
+        // ... rest of scheduling logic ...
 
         // Schedule Start/Stop
         const startTime = source.timelineStart || 0;

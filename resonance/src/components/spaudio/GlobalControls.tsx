@@ -9,6 +9,7 @@ interface GlobalControlsProps {
     onSave: () => any;
     onLoad: (data: any) => void;
     onReverbChange: (val: number) => void;
+    reverbGain: number; // Current gain value (0-1)
 
     // AI Director Props
     onAiGenerate: () => void;
@@ -26,16 +27,34 @@ export default function GlobalControls({
     onSave,
     onLoad,
     onReverbChange,
+    reverbGain, // New Prop
     onAiGenerate,
     promptInput,
     setPromptInput,
     aiStatus
 }: GlobalControlsProps) {
-    const [reverbLevel, setReverbLevel] = React.useState(10); // Default to 10%
+    // Reverse Cubic Mapping for UI: Gain (0-1) -> UI (0-100)
+    // Cubed: gain = (ui / 100)^3
+    // Inverse: ui = (gain^(1/3)) * 100
+    const calculateUiValue = (g: number) => {
+        const safeGain = (isNaN(g) || g === undefined) ? 0 : g;
+        return Math.round(Math.pow(safeGain, 1 / 3) * 100) || 0;
+    };
 
-    const handleReverbChange = (val: number) => {
-        setReverbLevel(val);
-        onReverbChange(val);
+    const [localUiValue, setLocalUiValue] = React.useState(() => calculateUiValue(reverbGain));
+
+    // Sync from prop when it changes externally (e.g. Load Project)
+    React.useEffect(() => {
+        setLocalUiValue(calculateUiValue(reverbGain));
+    }, [reverbGain]);
+
+    const handleReverbChange = (uiVal: number) => {
+        setLocalUiValue(uiVal); // Immediate UI update
+
+        const normalized = uiVal / 100;
+        const gain = Math.pow(normalized, 3); // Cubic curve = very fine control at bottom
+
+        onReverbChange(gain);
     };
 
     return (
@@ -49,11 +68,11 @@ export default function GlobalControls({
                             <Waves size={12} />
                             <span>Reverb</span>
                         </div>
-                        <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">{reverbLevel}%</span>
+                        <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">{localUiValue}%</span>
                     </div>
                     <input
                         type="range" min="0" max="100"
-                        value={reverbLevel}
+                        value={localUiValue}
                         onChange={(e) => handleReverbChange(Number(e.target.value))}
                         className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                     />
