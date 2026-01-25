@@ -48,7 +48,8 @@ Powered by **Google's Gemini 3**, Resonance understands scene descriptions ("cyb
 
 The **AI Director** is the core intelligence of Resonance. It replaces the "empty canvas" problem with an immediate, complex scene.
 
-*   **Model**: Powered by `gemini-3-flash-preview` for low-latency reasoning.
+*   **Model**: Powered by **Gemini 3 Flash** (Primary) with automatic fallback to **Gemini 2.0 Flash Lite** for robust performance.
+*   **Judge-Friendly Config**: Includes a built-in Settings UI allowing users to bring their own API Keys or switch models dynamically without code changes.
 *   **Capabilities**:
     *   **Scene Decomposition**: Breaks down abstract concepts ("Busy Cafe") into concrete audio assets ("Espresso Machine", "Chatter", "Dish Clatter").
     *   **Spatial Reasoning**: Assigns logical 3D coordinates. Ambient sounds (Wind, Traffic) are placed in distant orbits, while focal sounds (Footsteps) are placed near the listener.

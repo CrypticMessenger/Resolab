@@ -28,6 +28,7 @@ Resonance demonstrates that Gemini 3 is not just for chat—it is a powerful eng
     *   **Multimodal:** analyzing user-uploaded video to generate synchronized foley tracks.
 *   **Architecture:** Next.js 16 App Router, React 19, Three.js (R3F), and Web Audio API.
 *   **System:** Implements a custom Audio Graph engine with HRTF panning and Impulse Response reverb. Uses `OfflineAudioContext` for studio-grade WAV export.
+*   **Dynamic Configuration:** Client-side settings for API Key injection and Model Selection (privacy-first LocalStorage persistence).
 
 ### Potential Impact (20%)
 *   **Democratization:** Makes high-end Spatial Audio (essential for VR/AR/Vision Pro) accessible to creators who don't know audio engineering.
