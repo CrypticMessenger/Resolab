@@ -13,6 +13,7 @@ import GlobalControls from './spaudio/GlobalControls';
 import EditorSidebar from './spaudio/EditorSidebar';
 import Timeline from './spaudio/Timeline';
 import MediaLibraryModal from './spaudio/MediaLibraryModal';
+import GeminiSettingsModal from './spaudio/GeminiSettingsModal';
 import AuthButton from './auth/AuthButton';
 import { useTheme } from "next-themes";
 import { createClient } from '@/utils/supabase/client';
@@ -98,6 +99,24 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
     // Sync refs with state
     useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
     useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+
+    // --- Gemini Config State ---
+    const [showGeminiSettings, setShowGeminiSettings] = useState(false);
+    const [geminiConfig, setGeminiConfig] = useState({ apiKey: "", modelName: "gemini-2.0-flash" });
+
+    useEffect(() => {
+        const stored = localStorage.getItem('resonance_gemini_config');
+        if (stored) {
+            try {
+                setGeminiConfig(JSON.parse(stored));
+            } catch (e) { console.error("Failed to parse gemini config", e); }
+        }
+    }, []);
+
+    const handleSaveGeminiConfig = (config: { apiKey: string; modelName: string }) => {
+        setGeminiConfig(config);
+        localStorage.setItem('resonance_gemini_config', JSON.stringify(config));
+    };
 
     // Editor UI State
     const [editorState, setEditorState] = useState<EditorState>({
@@ -1217,10 +1236,12 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                                 syncSourceList();
                             }
                         });
-                    } else if (s.fileUrl) {
-                        // Legacy blob or Remote URL
+                    } else if (sData.fileUrl) {
+                        // Restore Remote URL (Global Asset)
+                        s.fileUrl = sData.fileUrl;
                         s.audioElement.crossOrigin = "anonymous";
                         s.audioElement.onerror = (e) => {
+                            console.error("Failed to load remote asset", s.fileUrl, e);
                             s.error = "missing";
                             syncSourceList();
                         };
@@ -1228,8 +1249,8 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                             s.error = undefined;
                             syncSourceList();
                         };
-                        const separator = s.fileUrl.includes('?') ? '&' : '?';
-                        s.audioElement.src = s.fileUrl + `${separator}t=${Date.now()}`;
+                        const separator = (s.fileUrl && s.fileUrl.includes('?')) ? '&' : '?';
+                        if (s.fileUrl) s.audioElement.src = s.fileUrl + `${separator}t=${Date.now()}`;
                         s.audioElement.load();
                     }
                 }
@@ -1305,7 +1326,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
             setThinkingSteps([{ id: 'think', text: 'Analyzing your request...', type: 'analysis', timestamp: Date.now() }]);
 
             // Blocking Call
-            const data = await generateSpatialSceneAction(promptInput);
+            const data = await generateSpatialSceneAction(promptInput, geminiConfig);
             clearTimeout(safetyTimeout);
 
             if (data.type === 'result') {
@@ -1382,7 +1403,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
             setThinkingSteps([{ id: 'think', text: 'Watching video frames...', type: 'analysis', timestamp: Date.now() }]);
 
             // Blocking Call
-            const data = await analyzeVideoAction(base64Data);
+            const data = await analyzeVideoAction(base64Data, geminiConfig);
             clearTimeout(safetyTimeout);
 
             if (data.type === 'result') {
@@ -1513,6 +1534,8 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                 totalBytes={limits.maxTotalStorageMB * 1024 * 1024}
                 fileCount={accountUsage.fileCount}
                 maxFiles={limits.maxFilesPerProject ?? 100} // Renaming to maxFilesPerAccount conceptually
+                onOpenSettings={() => setShowGeminiSettings(true)}
+                reverbGain={reverbGlobal}
             />
 
             {/* Timeline */}
@@ -1572,6 +1595,14 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                 isOpen={showExportSettings}
                 onClose={() => setShowExportSettings(false)}
                 onExport={runExport}
+            />
+
+            {/* 9. Gemini Settings Modal */}
+            <GeminiSettingsModal
+                isOpen={showGeminiSettings}
+                onClose={() => setShowGeminiSettings(false)}
+                initialConfig={geminiConfig}
+                onSave={handleSaveGeminiConfig}
             />
         </div>
     );

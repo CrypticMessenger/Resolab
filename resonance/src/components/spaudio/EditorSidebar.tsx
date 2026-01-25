@@ -34,6 +34,8 @@ interface EditorSidebarProps {
     totalBytes: number;
     fileCount: number;
     maxFiles: number | null;
+    onOpenSettings: () => void;
+    reverbGain: number;
 }
 
 import StorageMeter from './StorageMeter';
@@ -64,7 +66,9 @@ export default function EditorSidebar({
     usedBytes,
     totalBytes,
     fileCount,
-    maxFiles
+    maxFiles,
+    onOpenSettings,
+    reverbGain
 }: EditorSidebarProps) {
     const [activeTab, setActiveTab] = useState<'sources' | 'properties' | 'global'>('sources');
 
@@ -177,6 +181,8 @@ export default function EditorSidebar({
                             promptInput={promptInput}
                             setPromptInput={setPromptInput}
                             aiStatus={aiStatus}
+                            onOpenSettings={onOpenSettings}
+                            reverbGain={reverbGain}
                         />
                     </div>
                 )}

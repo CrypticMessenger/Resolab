@@ -154,16 +154,27 @@ export default function AutoFoleyModal({ isOpen, onClose, onProcessVideo, isProc
                         </>
                     ) : (
                         <div className="h-[300px] flex flex-col items-center justify-center gap-4">
-                            {/* Re-using the Thinking logic visually here or relies on the parent to show the global panel? 
-                                 Let's show a simple "Processing" state here, and let the Global ThinkingPanel handle the detailed logs 
-                                 if they are shared. 
-                                 Actually, for better UX, let's just show a large spinner here if the logs are global.
-                             */}
-                            <div className="relative">
-                                <div className="absolute inset-0 bg-pink-500 blur-xl opacity-20 animate-pulse" />
-                                <Loader2 size={64} className="text-pink-500 animate-spin relative z-10" />
-                            </div>
-                            <p className="text-gray-500 font-mono text-sm animate-pulse">Analyzing Video Frames...</p>
+                            {!isProcessing && thinkingSteps.length > 0 ? (
+                                <div className="text-center animate-in zoom-in duration-300">
+                                    <CheckCircle2 size={64} className="text-green-500 mb-4 mx-auto" />
+                                    <p className="text-lg font-bold text-gray-900 dark:text-white">Analysis Complete</p>
+                                    <p className="text-gray-500 max-w-xs mx-auto mt-2">The audio scene has been generated and added to your project.</p>
+                                    <button
+                                        onClick={onClose}
+                                        className="mt-6 px-6 py-2 bg-gray-900 dark:bg-white text-white dark:text-black rounded-xl font-bold hover:opacity-80 transition"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="relative">
+                                        <div className="absolute inset-0 bg-pink-500 blur-xl opacity-20 animate-pulse" />
+                                        <Loader2 size={64} className="text-pink-500 animate-spin relative z-10" />
+                                    </div>
+                                    <p className="text-gray-500 font-mono text-sm animate-pulse">Analyzing Video Frames...</p>
+                                </div>
+                            )}
                         </div>
                     )}
 

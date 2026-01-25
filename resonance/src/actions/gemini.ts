@@ -1,19 +1,21 @@
-
 "use server";
 
 import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
+import { getAvailableTagsString } from '@/lib/assetLibrary';
 
 // Initialize Gemini SDK
-const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
+// Initialize Gemini SDK with dynamic key helper
+const createGenAI = (apiKey?: string) => new GoogleGenerativeAI(apiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
 
 // Model Definitions
-const PRIMARY_MODEL = "gemini-3-flash-preview";
-const FALLBACK_MODEL = "gemini-2.0-flash-lite";
+const DEFAULT_PRIMARY_MODEL = "gemini-3-flash-preview";
+const DEFAULT_FALLBACK_MODEL = "gemini-2.0-flash-lite";
 
 /**
  * Helper to get a generative model instance.
  */
-function getModel(modelName: string): GenerativeModel {
+function getModel(modelName: string, apiKey?: string): GenerativeModel {
+    const genAI = createGenAI(apiKey);
     return genAI.getGenerativeModel({ model: modelName });
 }
 
@@ -23,31 +25,35 @@ function getModel(modelName: string): GenerativeModel {
 async function getCascadingContent(
     systemPrompt: string,
     userContent: any[],
-    actionName: string
+    actionName: string,
+    config?: { apiKey?: string; modelName?: string }
 ): Promise<{ text: string, usedModel: string }> {
+    const primaryModelName = config?.modelName || DEFAULT_PRIMARY_MODEL;
+
     try {
-        const model = getModel(PRIMARY_MODEL);
-        console.log(`[${actionName}] Calling Primary Model: ${PRIMARY_MODEL}...`);
+        const model = getModel(primaryModelName, config?.apiKey);
+        console.log(`[${actionName}] Calling Model: ${primaryModelName}...`);
 
         const result = await model.generateContent([
             systemPrompt,
             ...userContent
         ]);
         const response = await result.response;
-        return { text: response.text(), usedModel: PRIMARY_MODEL };
+        return { text: response.text(), usedModel: primaryModelName };
     } catch (error: any) {
-        console.warn(`[${actionName}] Primary model failed: ${error.message}. Switching to Fallback...`);
+        console.warn(`[${actionName}] Primary model (${primaryModelName}) failed: ${error.message}. Switching to Fallback...`);
 
+        // If user specified a custom model and it failed, we still try the default fallback
         try {
-            const fallbackModel = getModel(FALLBACK_MODEL);
-            console.log(`[${actionName}] Calling Fallback Model: ${FALLBACK_MODEL}...`);
+            const fallbackModel = getModel(DEFAULT_FALLBACK_MODEL, config?.apiKey);
+            console.log(`[${actionName}] Calling Fallback Model: ${DEFAULT_FALLBACK_MODEL}...`);
 
             const result = await fallbackModel.generateContent([
                 systemPrompt,
                 ...userContent
             ]);
             const response = await result.response;
-            return { text: response.text(), usedModel: FALLBACK_MODEL };
+            return { text: response.text(), usedModel: DEFAULT_FALLBACK_MODEL };
         } catch (fallbackError: any) {
             console.error(`[${actionName}] FATAL: All models failed.`, fallbackError);
             throw fallbackError;
@@ -58,9 +64,14 @@ async function getCascadingContent(
 /**
  * Generates a spatial audio scene description (Non-Streaming).
  */
-export async function generateSpatialSceneAction(prompt: string): Promise<any> {
+export async function generateSpatialSceneAction(prompt: string, config?: { apiKey?: string; modelName?: string }): Promise<any> {
+    const availableTags = getAvailableTagsString();
+
     const systemPrompt = `
     You are an expert Spatial Audio Director. Your goal is to design immersive 3D audio scenes based on user descriptions.
+    
+    CRITICAL: You must ONLY use the following 'semanticTag' values for your sources. Do not invent new tags.
+    AVAILABLE TAGS: [${availableTags}]
     
     OUTPUT FORMAT:
     1. First, think about the scene layout in your head (no need to output thoughts).
@@ -87,15 +98,25 @@ export async function generateSpatialSceneAction(prompt: string): Promise<any> {
 
     RULES:
     - Coordinates: x (-5 to 5), y (0 to 3), z (-5 to 5).
+    - Coordinate System:
+      - X < 0: Left side of user
+      - X > 0: Right side of user
+      - Y > 0: Above user (Height)
+      - Z > 0: Front of user
+      - Z < 0: Behind user
+    - User Head Position: The listener is always fixed at (0, 0, 0).
+    - Motion Rules:
+      - If an object moves towards the camera/listener and exits the frame, it implies passing the user. You MUST animate the source moving from Positive Z to Negative Z (e.g., Z=5 -> Z=-5) to simulate it passing *behind* the user.
+      - Do not let objects just vanish at Z=0.
     - Trajectories: Use 'orbit' for surrounding sounds, 'linear_forward' for passing sounds.
-    - Assets: Use simple keywords for 'semanticTag' like 'rain', 'wind', 'footsteps', 'bird', 'traffic'.
     `;
 
     try {
         const { text, usedModel } = await getCascadingContent(
             systemPrompt,
             [`User Prompt: ${prompt}`],
-            "Director"
+            "Director",
+            config
         );
 
         console.log(`[Director] Success with ${usedModel}. Parsing JSON...`);
@@ -115,9 +136,14 @@ export async function generateSpatialSceneAction(prompt: string): Promise<any> {
 /**
  * Analyzes video data (base64) to generate spatial audio (Non-Streaming).
  */
-export async function analyzeVideoAction(videoBase64: string): Promise<any> {
+export async function analyzeVideoAction(videoBase64: string, config?: { apiKey?: string; modelName?: string }): Promise<any> {
+    const availableTags = getAvailableTagsString();
+
     const systemPrompt = `
     You are an Auto-Foley Artist. Analyze the video and generate a spatial audio scene synchronization.
+    
+    CRITICAL: You must ONLY use the following 'semanticTag' values.
+    AVAILABLE TAGS: [${availableTags}]
     
     OUTPUT FORMAT:
     Output a SINGLE valid JSON object.
@@ -140,6 +166,19 @@ export async function analyzeVideoAction(videoBase64: string): Promise<any> {
             ]
         }
     }
+
+    RULES:
+    - Coordinate System:
+      - X < 0: Left side of user
+      - X > 0: Right side of user
+      - Y > 0: Above user (Height)
+      - Z > 0: Front of user
+      - Z < 0: Behind user
+    - User Head Position: The listener is always fixed at (0, 0, 0).
+    - Motion Rules:
+      - If an object in the video moves towards the camera and exits the frame (left/right/bottom), it implies passing the listener.
+      - You MUST animate the source coordinates moving from Positive Z to Negative Z (e.g., Z=3 -> Z=-3).
+      - This creates a realistic "fly-by" or "pass-through" effect where audio continues behind the user.
     `;
 
     try {
@@ -154,7 +193,8 @@ export async function analyzeVideoAction(videoBase64: string): Promise<any> {
                     mimeType: "video/mp4"
                 }
             }],
-            "AutoFoley"
+            "AutoFoley",
+            config
         );
 
         console.log(`[AutoFoley] Success with ${usedModel}. Parsing JSON...`);

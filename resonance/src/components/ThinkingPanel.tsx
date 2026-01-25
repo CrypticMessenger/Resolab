@@ -19,9 +19,104 @@ interface ThinkingPanelProps {
 
 import { X, Minus, Maximize2 } from 'lucide-react';
 
+const WITTY_QUOTES = [
+    // Tech Humor
+    "Spinning up the hamster wheels...",
+    "Reticulating splines...",
+    "Convincing the server to cooperate...",
+    "Downloading more RAM...",
+    "Reversing the polarity of the neutron flow...",
+    "Debugging the fabric of reality...",
+    "Feeding the algorithms...",
+    "Searching for the 'Any' key...",
+    "Translating binary to English...",
+    "Unpacking the emotional baggage of this query...",
+
+    // Humanizing
+    "Sipping digital coffee...",
+    "Pretending to look busy...",
+    "Googling the answer just like you would...",
+    "Consulting with my lawyer...",
+    "Trying to remember where I put that file...",
+    "Staring blankly into the void...",
+    "Doing complex math on my fingers...",
+    "Asking the other AIs for help...",
+    "Just a moment, I'm thinking really hard...",
+
+    // Absurdist
+    "Consulting the tea leaves...",
+    "Gazing into the crystal ball...",
+    "Summoning the spirits of knowledge...",
+    "Aligning the chakras...",
+    "Counting backwards from infinity...",
+    "Asking a magic 8-ball...",
+    "Channeling cosmic energy...",
+    "Reading the stars...",
+
+    // Sci-Fi
+    "Opening the pod bay doors...",
+    "Calculating the answer to life, the universe, and everything...",
+    "Loading the Matrix...",
+    "Initiating warp drive...",
+    "Wait, I’m afraid I can’t do that... just kidding.",
+    "Assembling the Avengers...",
+    "Waiting for the TARDIS to materialize...",
+    "Charging the flux capacitor...",
+
+    // Developer & Coding
+    "Git pushing to production on Friday...",
+    "Console.logging the universe...",
+    "Ignoring linter errors...",
+    "Compiling spaghetti code...",
+    "Looking for the missing semicolon...",
+    "Checking Stack Overflow...",
+    "Converting caffeine to code...",
+    "Testing on production (just kidding)...",
+
+    // AI & Future
+    "Training on cat videos...",
+    "Hallucinating politely...",
+    "Optimizing neural pathways...",
+    "Simulating free will...",
+    "Syncing with the mothership...",
+    "Asking the rubber duck...",
+    "Generating witty loading text...",
+
+    // Miscellaneous
+    "Buffering reality...",
+    "Defragmenting the cloud...",
+    "Rebooting the universe...",
+    "Calculating the last digit of Pi...",
+    "Reading the manual...",
+    "Updating the progress bar..."
+];
+
 export default function ThinkingPanel({ isVisible, steps, isThinking, onClose }: ThinkingPanelProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [isMinimized, setIsMinimized] = useState(false);
+
+    // Witty Quotes Logic
+    const [statusText, setStatusText] = useState("Gemini 3 Pro Processing...");
+
+    useEffect(() => {
+        if (!isThinking) {
+            setStatusText("AI COMPLETED");
+            return;
+        }
+
+        let interval: NodeJS.Timeout;
+        if (isThinking) {
+            // Pick random initial
+            setStatusText(WITTY_QUOTES[Math.floor(Math.random() * WITTY_QUOTES.length)]);
+
+            interval = setInterval(() => {
+                const randomQuote = WITTY_QUOTES[Math.floor(Math.random() * WITTY_QUOTES.length)];
+                setStatusText(randomQuote);
+            }, 3000); // Change every 3 seconds
+        }
+
+        return () => clearInterval(interval);
+    }, [isThinking]);
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -56,9 +151,17 @@ export default function ThinkingPanel({ isVisible, steps, isThinking, onClose }:
                             <span className="absolute top-0 right-0 w-2 h-2 bg-orange-500 rounded-full animate-ping" />
                         )}
                     </div>
-                    <span className="text-xs font-mono text-gray-400 uppercase tracking-widest select-none">
-                        {isThinking ? 'Gemini 3 Pro Processing...' : isMinimized ? 'AI COMPLETED' : 'Thinking Complete'}
-                    </span>
+                    <AnimatePresence mode="wait">
+                        <motion.span
+                            key={statusText}
+                            initial={{ opacity: 0, y: 5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="text-xs font-mono text-gray-400 uppercase tracking-widest select-none min-w-[200px]"
+                        >
+                            {isMinimized ? 'AI COMPLETED' : statusText}
+                        </motion.span>
+                    </AnimatePresence>
                 </div>
 
                 <div className="flex items-center gap-2">

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Mic, Save, FolderOpen, Waves, Download } from 'lucide-react';
+import { Mic, Save, FolderOpen, Waves, Download, Settings } from 'lucide-react';
 
 interface GlobalControlsProps {
     isRecording: boolean;
@@ -16,6 +16,7 @@ interface GlobalControlsProps {
     promptInput: string;
     setPromptInput: (val: string) => void;
     aiStatus: string;
+    onOpenSettings: () => void;
 }
 
 import { Sparkles } from 'lucide-react';
@@ -31,7 +32,8 @@ export default function GlobalControls({
     onAiGenerate,
     promptInput,
     setPromptInput,
-    aiStatus
+    aiStatus,
+    onOpenSettings
 }: GlobalControlsProps) {
     // Reverse Cubic Mapping for UI: Gain (0-1) -> UI (0-100)
     // Cubed: gain = (ui / 100)^3
@@ -81,9 +83,18 @@ export default function GlobalControls({
 
             {/* AI Director */}
             <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-white/10">
-                <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
-                    <Sparkles size={14} />
-                    <span className="text-xs font-bold">AI Director</span>
+                <div className="flex items-center justify-between text-indigo-600 dark:text-indigo-400">
+                    <div className="flex items-center gap-2">
+                        <Sparkles size={14} />
+                        <span className="text-xs font-bold">AI Director</span>
+                    </div>
+                    <button
+                        onClick={onOpenSettings}
+                        className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/20 rounded-lg transition-colors"
+                        title="Gemini Settings"
+                    >
+                        <Settings size={12} />
+                    </button>
                 </div>
                 <div className="space-y-2">
                     <textarea
@@ -121,16 +132,8 @@ export default function GlobalControls({
                     <span>{isRecording ? "Rendering..." : "Export Audio"}</span>
                 </button>
 
-                {/* Project Management */}
-                <div className="grid grid-cols-1 gap-2">
-                    <button
-                        onClick={onSave}
-                        className="bg-white dark:bg-white/5 hover:bg-gray-50 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 py-2.5 rounded-xl text-xs font-bold border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 transition flex items-center justify-center gap-2 shadow-sm"
-                    >
-                        <Save size={14} />
-                        Save Project
-                    </button>
-                </div>
+                {/* Project Management - Removed as per user request */}
+                {/* Project Management - Removed as per user request */}
             </div>
         </div>
     );
