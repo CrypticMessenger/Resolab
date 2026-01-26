@@ -1,88 +1,88 @@
-# Resonance - The "Keynote" Launch Script
-**Style:** Apple/Google Product Reveal
-**Tone:** Confident, Revolutionary, Minimalist.
-**Music:** Start with a deep, rhythmic bass pulse. Transition to driving, high-energy synth-wave after the reveal.
+# Resonance - The Technical Demo (Hackathon Submission)
+**Duration:** 3 Minutes
+**Goal:** deeply demonstrate the **Technical Execution**, **Gemini 3 Reasoning**, and **Wow Factor**.
 
 ---
 
-## 🌑 0:00 - 0:15: The Problem (Cinematic Intro)
-**Visual:** All Black Screen. 
-**Text Fade In:** "For 100 years..."
-**Text Change:** "...audio has been trapped..."
-**Text Change:** "...in stereo."
-*(Fade to a flat 2D waveform line boredly scrolling across the screen)*
+## � Phase 1: The "Veo 3" Upgrade (The Hook)
+**[0:00 - 0:30]**
 
-**Voiceover:** "We live in a 3D world. We build 3D games. We explore 3D webs. Yet, our audio tools are still stuck in two dimensions."
-
----
-
-## 💥 0:15 - 0:25: The Reveal
-**Visual:** The 2D Waveform *shatters* outwards into the 3D Resonance Grid.
-**Text:** **RESONANCE**
-**Sub-text:** "The Era of Spatial Authoring."
-
-**Voiceover:** "Introducing Resonance. The first spatial audio director powered by Gemini 3."
-
-*(Beat Drop - High Energy Music Starts)*
+*   **Visual Setup:** Split Screen.
+    *   **Left:** "Veo 2 Raw Output" (Silent video of a stormy forest).
+    *   **Right:** "Resonance Upgrade" (Same video, but with a 3D mesh overlay).
+*   **Action:**
+    *   Play the Left video (Silence).
+    *   Play the Right video (Roaring 3D audio: wind howling, trees creaking).
+*   **Voiceover:**
+    > "We are entering the golden age of generative video. Models like Veo 2 create visual masterpieces... but they are silent. They are ghost worlds."
+    > *(Beat)*
+    > "Meet **Resonance**. The first spatial audio DAW powered by **Gemini 3**. We took that silent video and gave it a voice, effectively upgrading it to **Veo 3** quality using pure AI reasoning."
 
 ---
 
-## 🔮 0:25 - 0:55: The "Magic" (Auto-Foley / Multimodal)
-**Visual:** Full screen video clip (Rainy Tokyo Street). Sound is OFF.
-**Voiceover:** "Imagine taking a video..."
-**Action:** The video frame shrinks and drops onto the Resonance Grid.
-**Voiceover:** "...and giving it depth."
+## 🧠 Phase 2: Auto-Foley & Multimodal Reasoning
+**[0:30 - 1:15]**
 
-**Visual:** The "Thinking" UI explodes with tags: `RAIN`, `NEON`, `TRAFFIC`.
-**Sound:** *WHOOSH* - The 3D audio kicks in instant, rich, immersive.
-
-**Voiceover:** "Multimodal agents analyze every pixel. They see the rain. They calculate the traffic. And they place sound sources in physical space."
-
-**Visual:** **"LISTEN."** (Text Overlay)
-*(Music cuts out. Pure 5s Spatial Sound demo. Rain surrounds the user.)*
-
----
-
-## 🧠 0:55 - 1:35: The "Brain" (Reasoning Execution)
-**Visual:** Split screen. Chat Prompt on Left. 3D Grid on Right.
-**Voiceover:** "It's not just generation. It's reasoning."
-
-**Action:** Typing: *"A ghost walking on the ceiling."*
-**Visual:** Zoom into the Code Logs. Highlight: `Elevation: +3m`.
-**Voiceover:** "Resonance understands physics. It knows that 'ceiling' means positive elevation. It knows 'walking' means trajectory. It builds a Semantic Scene Graph."
-
-**Visual:** A glowing orb helps the "Ghost" sound pass *over* the camera.
-*(5s Audio Demo: Footsteps panning front-to-back overhead)*
-
-**Voiceover:** "True verticality. No manual mixing required."
+*   **Visual:** Drag & Drop a raw video file (e.g., "Walking on Gravel") into Resonance.
+*   **The "Wow" Overlay:**
+    *   As the AI processes, display a **"Gemini 3 Analysis Stream"** overlay in the corner.
+    *   *Scrolling Text:* `Detected: Footsteps`, `Material: Wet Gravel (Confidence 98%)`, `Depth: Moving Z+ to Z-`.
+*   **Voiceover:**
+    > "Watch the Auto-Foley Agent. I simply upload a video."
+    > "Gemini 3 Multimodal watches the scene. It identifies materials—distinguishing between concrete and gravel—and projects 2D pixels into a 3D audio environment."
+*   **Visual:**
+    *   A "Sound Emitter" dot appears at the actor's feet in the 3D grid.
+    *   As the actor walks away in the video, the dot moves in the 3D grid.
+*   **Voiceover:**
+    > "It calculates depth automatically. As the actor walks away, the sound attenuates. I didn't touch a single fader. This is Gemini's reasoning in action."
 
 ---
 
-## 🚀 1:35 - 2:05: The Innovation (IAMF Export)
-**Visual:** The "Export" Menu opens. 
-**Action:** Mouse hovers over "WAV". Then moves to **"IAMF (Spatial)"**.
-**Text Overlay:** **IAMF** (Immersive Audio Model and Formats)
+## 🎨 Phase 3: Director Mode (Regeneration & Context)
+**[1:15 - 1:45]**
 
-**Voiceover:** "But why build in 3D if you export to 2D? Resonance is one of the first web tools to support **IAMF**—the new open standard from Google and Samsung."
-
-**Visual:** Diagram showing Resonance -> IAMF File -> YouTube / Samsung Soundbar / VR Headset.
-**Voiceover:** "We don't just render pixels. We render an object-based audio container that adapts to your device—whether it's a soundbar or a VR headset. Build once, resonate everywhere."
-
----
-
-## 🌍 2:05 - 2:30: The Future (Outro)
-**Visual:** The grid slowly zooms out to show a galaxy of projects.
-**Voiceover:** "The flat era is over. It's time to unmute the spatial web."
-
-**Text:** **Resonance.**
-**Sub-text:** Built with Gemini 3.
-
-**Visual:** Fade to Black. 
-**Text:** "Try the Alpha @ [Link]"
+*   **Visual:** The current scene is "Forest".
+*   **Voiceover:**
+    > "But Gemini 3 isn't just a generator; it's a Director. It understands physics, not just keywords."
+*   **Action:**
+    *   User types: *"Actually, make it a hostile alien planet."*
+*   **The "Regenerate" Flex:**
+    *   **Visual:** A "Re-imagining Scene..." loader appears. The "Bird" nodes **wipes away** completely.
+    *   **New Nodes:** "Sci-Fi Drone" and "Alien Howl" nodes fade in.
+*   **Voiceover:**
+    > "Conventional tools make you delete tracks manually. But Resonance is generative."
+    > "When I change the context, the AI Director wipes the slate and reconstructs the physics from scratch. It swaps earthly birds for alien drones and adjusts the atmospheric pressure."
 
 ---
 
-## 📋 Production Notes for the "Apple Vibe"
-1.  **Typography:** Use a clean, bold sans-serif font (Inter or Helvetica) for all overlays.
-2.  **Timing:** Don't rush. Leave "air" between the sentences. Let the visual punch land before you explain it.
-3.  **Contrast:** Ensure the "Silence" at the beginning is dead silent, so the "Sound" at the reveal hits hard.
+## 🔁 Phase 4: Trajectories & Natural Language Control
+**[1:45 - 2:20]**
+
+*   **Visual:** A specific sound source (e.g., a "Hover Car").
+*   **Action:**
+    *   User types: *"Make the hover car circle around my head."*
+*   **Visual:**
+    *   The 3D trajectory line instantly snaps from "Linear" to "Orbit" (Circular path).
+*   **Voiceover:**
+    > "I don't need complex engineering tools. I just need English."
+    > "Resonance understands that 'circle' means an orbital trajectory. It modifies the automation curve instantly."
+*   **Audio Demo:**
+    *   Play the sound. The car pans perfectly around the listener (Binaural 3D).
+
+---
+
+## 🚀 Phase 5: The Innovation (IAMF Export)
+**[2:20 - 3:00]**
+
+*   **Visual:** Click the **Export** menu. Hover over **"IAMF (Spatial)"**.
+*   **Voiceover:**
+    > "But why build in 3D if you export to 2D?"
+    > "Resonance is one of the first web tools to support **IAMF**—the new open standard from Google and Samsung."
+*   **Action:**
+    *   Click Export. Show a "Muxing IAMF Container..." spinner.
+    *   File downloads (`scene.iamf`).
+*   **Visual:** Diagram: Resonance -> VR Headset / Soundbar / YouTube.
+*   **Voiceover:**
+    > "We don't just render pixels. We render an object-based audio container that adapts to your device—whether it's a soundbar or the Apple Vision Pro. Build once, resonate everywhere."
+    > *(Fade to Logo)*
+    > "**Resonance**. The Audio Layer for the Generative Web."

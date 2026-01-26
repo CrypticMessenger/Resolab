@@ -38,7 +38,7 @@ const ASSET_DATABASE: AudioAsset[] = [
     { tags: ['lion', 'growl', 'roar', 'beast'], url: 'https://pcdebvnuuryykgligezd.supabase.co/storage/v1/object/public/globalAssets/lion-snarl-growl-354324.mp3', category: 'Animals' },
 
     // --- TECH / SCI-FI ---
-    { tags: ['robot', 'servo', 'mech'], url: 'https://pcdebvnuuryykgligezd.supabase.co/storage/v1/object/public/globalAssets/servo-motor.mp3', category: 'SciFi' },
+    { tags: ['robot', 'spaceship', 'drone', 'mech'], url: 'https://pcdebvnuuryykgligezd.supabase.co/storage/v1/object/public/globalAssets/alien-spaceship-roar-287340.mp3', category: 'SciFi' },
     { tags: ['laser', 'shoot', 'pew'], url: 'https://pcdebvnuuryykgligezd.supabase.co/storage/v1/object/public/globalAssets/laser-gun-shot-sound-future-sci-fi-lazer-wobble-chakongaudio-174883.mp3', category: 'SciFi' },
     { tags: ['explode', 'explosion', 'boom'], url: 'https://pcdebvnuuryykgligezd.supabase.co/storage/v1/object/public/globalAssets/explosion-fx-343683.mp3', category: 'SciFi' },
 
