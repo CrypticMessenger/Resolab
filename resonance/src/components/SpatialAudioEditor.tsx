@@ -1379,14 +1379,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
         setShowThinkingPanel(true);
         setAiStatus("Watching Video...");
 
-        // Safety Timeout
-        const safetyTimeout = setTimeout(() => {
-            if (thinkingSteps.length === 0) {
-                setThinkingSteps([{ id: 'timeout', text: 'Video analysis timed out. File might be too large.', type: 'action', timestamp: Date.now() }]);
-                setAiStatus("Timeout");
-                setIsThinking(false);
-            }
-        }, 30000); // 30s timeout for video (uploading takes time)
+
 
         setAiStatus("Watching Video...");
 
@@ -1404,7 +1397,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
             // Blocking Call
             const data = await analyzeVideoAction(base64Data, geminiConfig);
-            clearTimeout(safetyTimeout);
+
 
             if (data.type === 'result') {
                 console.log("Applying Filter Scene:", data.data);

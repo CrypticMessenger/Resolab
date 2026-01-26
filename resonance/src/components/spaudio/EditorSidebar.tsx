@@ -78,10 +78,10 @@ export default function EditorSidebar({
             <div className="p-5 border-b border-gray-200 dark:border-white/5 bg-gray-50/50 dark:bg-white/5">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 ring-1 ring-black/5 dark:ring-white/10">
-                        <span className="text-white font-bold text-sm">KY</span>
+                        <span className="text-white font-bold text-sm">RS</span>
                     </div>
                     <div>
-                        <h1 className="text-base font-bold text-gray-900 dark:text-white tracking-tight leading-tight">KYMATIC</h1>
+                        <h1 className="text-base font-bold text-gray-900 dark:text-white tracking-tight leading-tight">RESONANCE</h1>
                         <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium tracking-wide uppercase">Spatial Studio</p>
                     </div>
                 </div>

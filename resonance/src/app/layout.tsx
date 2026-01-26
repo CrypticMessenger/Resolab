@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Kymatic - Spatial Audio Reimagined",
+  title: "Resonance - Spatial Audio Reimagined",
   description: "Professional spatial audio editor in your browser",
 };
 

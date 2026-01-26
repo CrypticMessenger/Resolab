@@ -33,9 +33,9 @@ export default function LandingPage() {
                     <div className="flex items-center gap-2">
                         <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-400 to-blue-600 flex items-center justify-center shadow-lg shadow-green-500/20">
-                                <span className="text-white font-bold text-xs">KY</span>
+                                <span className="text-white font-bold text-xs">RS</span>
                             </div>
-                            <span className="font-bold text-lg tracking-tight">KYMATIC</span>
+                            <span className="font-bold text-lg tracking-tight">RESONANCE</span>
                         </div>
                     </div>
                     <div className="flex items-center gap-6">
@@ -116,7 +116,7 @@ export default function LandingPage() {
                             Create Worlds with Sound
                         </h2>
                         <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-                            From immersive storytelling to next-gen game audio, discover what's possible with Kymatic.
+                            From immersive storytelling to next-gen game audio, discover what's possible with Resonance.
                         </p>
                     </div>
 
@@ -212,22 +212,22 @@ export default function LandingPage() {
                                 spotlightColor: "rgba(168, 85, 247, 0.15)"
                             },
                             {
-                                title: "Live Streaming Support",
-                                desc: "Stream your spatial audio creations live with ultra-low latency. Perfect for virtual concerts, immersive podcasts, and live performances. Includes real-time monitoring, audience analytics, and adaptive bitrate streaming for seamless delivery.",
-                                icon: Radio,
+                                title: "Auto-Foley Agent",
+                                desc: "Upload a video and let Resonance's Multimodal Gemini agents automatically generate a synchronized, spatially-accurate soundscape. Recognizes materials, events, and depth to instantly Foley your scene.",
+                                icon: Mic,
                                 color: "text-red-400",
                                 spotlightColor: "rgba(239, 68, 68, 0.15)"
                             },
                             {
-                                title: "Collaborative Workspace",
-                                desc: "Work together in real-time with your team from anywhere in the world. Share projects, iterate on spatial arrangements, and communicate via integrated voice chat. Track changes with version history and role-based permissions for precise workflow control.",
-                                icon: Users,
+                                title: "Gemini 3 Reasoning",
+                                desc: "Beyond simple generation, Resonance understands physics. The AI Director calculates trajectories, Doppler shifts, and environmental occlusion based on your natural language scene descriptions.",
+                                icon: Users, // Using Users as a placeholder for 'Brain' or similar if not available, or keep generic
                                 color: "text-green-400",
                                 spotlightColor: "rgba(34, 197, 94, 0.15)"
                             },
                             {
-                                title: "Cloud Project Library",
-                                desc: "Access your projects from any device with automatic cloud sync and backup. Store unlimited audio files with intelligent compression, organize with tags and collections, and instantly restore previous versions. Your creative work, always safe and accessible.",
+                                title: "Judge-Friendly Config",
+                                desc: "Built for hackathons and demos. The dynamic configuration engine allows you to swap Gemini models (Flash/Pro) and inject custom API keys instantly via the UI, ensuring privacy and flexibility.",
                                 icon: Cloud,
                                 color: "text-cyan-400",
                                 spotlightColor: "rgba(6, 182, 212, 0.15)"
@@ -261,9 +261,9 @@ export default function LandingPage() {
                     <div className="flex items-center gap-2">
                         <div className="flex items-center gap-2">
                             <div className="w-6 h-6 rounded-md bg-gradient-to-br from-green-400 to-blue-600 flex items-center justify-center">
-                                <span className="text-white font-bold text-[10px]">KY</span>
+                                <span className="text-white font-bold text-[10px]">RS</span>
                             </div>
-                            <span className="font-bold tracking-tight text-gray-400">KYMATIC</span>
+                            <span className="font-bold tracking-tight text-gray-400">RESONANCE</span>
                         </div>
                     </div>
 
@@ -274,7 +274,7 @@ export default function LandingPage() {
                     </div>
 
                     <div className="text-sm text-gray-600">
-                        © 2025 Kymatic Inc.
+                        © 2026 Resonance.
                     </div>
                 </div>
             </footer >
