@@ -71,7 +71,9 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
     // Account Usage State
     const [accountUsage, setAccountUsage] = useState({ usedBytes: 0, fileCount: 0 });
+
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [projectName, setProjectName] = useState("Untitled Project");
 
     // Use static limits from manager
     const limits = subscriptionManager.getLimits();
@@ -163,13 +165,16 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
         const fetchProject = async () => {
             const { data, error } = await supabase
                 .from('projects')
-                .select('data')
+                .select('name, data')
                 .eq('id', projectId)
                 .single();
 
-            if (data && (data as any).data) {
-                console.log("Loading project data...", (data as any).data);
-                loadProject((data as any).data);
+            if (data) {
+                if (data.name) setProjectName(data.name);
+                if ((data as any).data) {
+                    console.log("Loading project data...", (data as any).data);
+                    loadProject((data as any).data);
+                }
             } else if (error) {
                 console.error("Error loading project:", error);
             }
@@ -976,8 +981,10 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
             const link = document.createElement('a');
             link.href = url;
             // Filename includes settings
+            // Filename includes settings
             const suffix = settings.bitDepth === 32 ? '32bit_float' : `${settings.bitDepth}bit`;
-            link.download = `resonance_${Math.round(settings.sampleRate / 1000)}k_${suffix}_${Date.now()}.wav`;
+            const safeName = projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            link.download = `${safeName}_${Math.round(settings.sampleRate / 1000)}k_${suffix}.wav`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -1145,7 +1152,8 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                         data: data,
                         updated_at: new Date().toISOString()
                     })
-                    .eq('id', projectId);
+                    .eq('id', projectId)
+                    .select();
 
                 console.log("Project saved successfully!");
                 setSaveStatus('saved');
@@ -1397,7 +1405,6 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
             // Blocking Call
             const data = await analyzeVideoAction(base64Data, geminiConfig);
-
 
             if (data.type === 'result') {
                 console.log("Applying Filter Scene:", data.data);

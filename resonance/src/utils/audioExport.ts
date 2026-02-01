@@ -208,7 +208,7 @@ export async function renderTimelineToWav(
             const pos = calculatePosition(
                 timeOffset,
                 source.position,
-                source.automationType,
+                source.automationType || 'none',
                 source.automationParams
             );
 

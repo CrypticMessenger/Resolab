@@ -159,7 +159,7 @@ export default function ThinkingPanel({ isVisible, steps, isThinking, onClose }:
                             exit={{ opacity: 0, y: -5 }}
                             className="text-xs font-mono text-gray-400 uppercase tracking-widest select-none min-w-[200px]"
                         >
-                            {isMinimized ? 'AI COMPLETED' : statusText}
+                            {statusText}
                         </motion.span>
                     </AnimatePresence>
                 </div>
