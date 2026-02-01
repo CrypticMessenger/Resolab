@@ -1,5 +1,5 @@
 
-const DB_NAME = "ResonanceAudioDB";
+const DB_NAME = "ResolabAudioDB";
 const STORE_NAME = "audio_files";
 const DB_VERSION = 1;
 

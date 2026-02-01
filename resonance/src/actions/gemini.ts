@@ -3,7 +3,6 @@
 import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 import { getAvailableTagsString } from '@/lib/assetLibrary';
 
-// Initialize Gemini SDK
 // Initialize Gemini SDK with dynamic key helper
 const createGenAI = (apiKey?: string) => new GoogleGenerativeAI(apiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
 

@@ -33,9 +33,9 @@ export default function LandingPage() {
                     <div className="flex items-center gap-2">
                         <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-400 to-blue-600 flex items-center justify-center shadow-lg shadow-green-500/20">
-                                <span className="text-white font-bold text-xs">RS</span>
+                                <span className="text-white font-bold text-xs">RL</span>
                             </div>
-                            <span className="font-bold text-lg tracking-tight">RESONANCE</span>
+                            <span className="font-bold text-lg tracking-tight">RESOLAB</span>
                         </div>
                     </div>
                     <div className="flex items-center gap-6">
@@ -116,7 +116,7 @@ export default function LandingPage() {
                             Create Worlds with Sound
                         </h2>
                         <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-                            From immersive storytelling to next-gen game audio, discover what's possible with Resonance.
+                            From immersive storytelling to next-gen game audio, discover what's possible with Resolab.
                         </p>
                     </div>
 
@@ -213,14 +213,14 @@ export default function LandingPage() {
                             },
                             {
                                 title: "Auto-Foley Agent",
-                                desc: "Upload a video and let Resonance's Multimodal Gemini agents automatically generate a synchronized, spatially-accurate soundscape. Recognizes materials, events, and depth to instantly Foley your scene.",
+                                desc: "Upload a video and let Resolab's Multimodal Gemini agents automatically generate a synchronized, spatially-accurate soundscape. Recognizes materials, events, and depth to instantly Foley your scene.",
                                 icon: Mic,
                                 color: "text-red-400",
                                 spotlightColor: "rgba(239, 68, 68, 0.15)"
                             },
                             {
                                 title: "Gemini 3 Reasoning",
-                                desc: "Beyond simple generation, Resonance understands physics. The AI Director calculates trajectories, Doppler shifts, and environmental occlusion based on your natural language scene descriptions.",
+                                desc: "Beyond simple generation, Resolab understands physics. The AI Director calculates trajectories, Doppler shifts, and environmental occlusion based on your natural language scene descriptions.",
                                 icon: Users, // Using Users as a placeholder for 'Brain' or similar if not available, or keep generic
                                 color: "text-green-400",
                                 spotlightColor: "rgba(34, 197, 94, 0.15)"
@@ -261,9 +261,9 @@ export default function LandingPage() {
                     <div className="flex items-center gap-2">
                         <div className="flex items-center gap-2">
                             <div className="w-6 h-6 rounded-md bg-gradient-to-br from-green-400 to-blue-600 flex items-center justify-center">
-                                <span className="text-white font-bold text-[10px]">RS</span>
+                                <span className="text-white font-bold text-[10px]">RL</span>
                             </div>
-                            <span className="font-bold tracking-tight text-gray-400">RESONANCE</span>
+                            <span className="font-bold tracking-tight text-gray-400">RESOLAB</span>
                         </div>
                     </div>
 
@@ -274,7 +274,7 @@ export default function LandingPage() {
                     </div>
 
                     <div className="text-sm text-gray-600">
-                        © 2026 Resonance.
+                        © 2026 Resolab.
                     </div>
                 </div>
             </footer >

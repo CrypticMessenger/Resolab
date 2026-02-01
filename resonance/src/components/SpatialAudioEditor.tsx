@@ -107,7 +107,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
     const [geminiConfig, setGeminiConfig] = useState({ apiKey: "", modelName: "gemini-2.0-flash" });
 
     useEffect(() => {
-        const stored = localStorage.getItem('resonance_gemini_config');
+        const stored = localStorage.getItem('resolab_gemini_config');
         if (stored) {
             try {
                 setGeminiConfig(JSON.parse(stored));
@@ -117,7 +117,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
     const handleSaveGeminiConfig = (config: { apiKey: string; modelName: string }) => {
         setGeminiConfig(config);
-        localStorage.setItem('resonance_gemini_config', JSON.stringify(config));
+        localStorage.setItem('resolab_gemini_config', JSON.stringify(config));
     };
 
     // Editor UI State
@@ -1401,7 +1401,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
             });
 
             // Synthetic thinking step
-            setThinkingSteps([{ id: 'think', text: 'Watching video frames...', type: 'analysis', timestamp: Date.now() }]);
+            setThinkingSteps(prev => [...prev, { id: 'think', text: 'Watching video frames...', type: 'analysis', timestamp: Date.now() }]);
 
             // Blocking Call
             const data = await analyzeVideoAction(base64Data, geminiConfig);

@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Resonance - Spatial Audio Reimagined",
+  title: "Resolab - Spatial Audio Reimagined",
   description: "Professional spatial audio editor in your browser",
 };
 
