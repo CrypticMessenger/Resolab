@@ -132,11 +132,25 @@ export async function generateSpatialSceneAction(prompt: string, config?: { apiK
     }
 }
 
+import { GoogleAIFileManager } from "@google/generative-ai/server";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { pipeline } from "stream/promises";
+
 /**
- * Analyzes video data (base64) to generate spatial audio (Non-Streaming).
+ * Analyzes video data (URL) to generate spatial audio (Non-Streaming).
+ * Now uses Google AI File Manager API to handle large files.
  */
-export async function analyzeVideoAction(videoBase64: string, config?: { apiKey?: string; modelName?: string }): Promise<any> {
+export async function analyzeVideoAction(videoUrl: string, config?: { apiKey?: string; modelName?: string }): Promise<any> {
     const availableTags = getAvailableTagsString();
+    const apiKey = config?.apiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
+
+    if (!apiKey) {
+        return { type: 'error', message: "Missing Gemini API Key" };
+    }
+
+    const fileManager = new GoogleAIFileManager(apiKey);
 
     const systemPrompt = `
     You are an Auto-Foley Artist. Analyze the video and generate a spatial audio scene synchronization.
@@ -180,23 +194,69 @@ export async function analyzeVideoAction(videoBase64: string, config?: { apiKey?
       - This creates a realistic "fly-by" or "pass-through" effect where audio continues behind the user.
     `;
 
+    let tempFilePath: string | null = null;
+    let uploadResult: any = null;
+
     try {
-        // Convert base64 to GenerativePart (inline data)
-        const validBase64 = videoBase64.split(',')[1] || videoBase64;
+        console.log(`[AutoFoley] Downloading video from ${videoUrl.substring(0, 50)}...`);
 
-        const { text, usedModel } = await getCascadingContent(
+        // 1. Download Video to Temp File
+        const response = await fetch(videoUrl);
+        if (!response.ok) throw new Error(`Failed to fetch video: ${response.statusText}`);
+
+        const tempDir = os.tmpdir();
+        const fileExt = videoUrl.split('.').pop()?.split('?')[0] || 'mp4';
+        tempFilePath = path.join(tempDir, `gemini_upload_${Date.now()}.${fileExt}`);
+
+        const fileStream = fs.createWriteStream(tempFilePath);
+        // @ts-ignore - web streams to node streams mismatch
+        await pipeline(response.body, fileStream);
+
+        console.log(`[AutoFoley] Video downloaded to ${tempFilePath}. Uploading to Gemini...`);
+
+        // 2. Upload to Gemini File Manager
+        uploadResult = await fileManager.uploadFile(tempFilePath, {
+            mimeType: "video/mp4", // Assuming mp4 for simplicity, or detect
+            displayName: "AutoFoley Video",
+        });
+
+        console.log(`[AutoFoley] Uploaded to Gemini: ${uploadResult.file.uri}`);
+
+        // 3. Polling Loop: Wait for File Processing
+        let file = uploadResult.file;
+        let attempt = 0;
+
+        console.log(`[AutoFoley] Waiting for video processing...`);
+
+        while (file.state === "PROCESSING" && attempt < 30) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            file = await fileManager.getFile(file.name);
+            console.log(`[AutoFoley] Processing state: ${file.state}`);
+            attempt++;
+        }
+
+        if (file.state !== "ACTIVE") {
+            throw new Error(`Video failed to process. State: ${file.state}`);
+        }
+
+        const modelName = config?.modelName || DEFAULT_PRIMARY_MODEL;
+        const model = getModel(modelName, apiKey);
+
+        console.log(`[AutoFoley] Generating content...`);
+
+        const result = await model.generateContent([
             systemPrompt,
-            [{
-                inlineData: {
-                    data: validBase64,
-                    mimeType: "video/mp4"
+            {
+                fileData: {
+                    mimeType: uploadResult.file.mimeType,
+                    fileUri: uploadResult.file.uri
                 }
-            }],
-            "AutoFoley",
-            config
-        );
+            },
+            { text: "Analyze this video." }
+        ]);
 
-        console.log(`[AutoFoley] Success with ${usedModel}. Parsing JSON...`);
+        const text = result.response.text();
+        console.log(`[AutoFoley] Success. Parsing JSON...`);
 
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -204,8 +264,21 @@ export async function analyzeVideoAction(videoBase64: string, config?: { apiKey?
         } else {
             throw new Error("No JSON found in response");
         }
+
     } catch (error: any) {
         console.error("[AutoFoley] Error:", error);
         return { type: 'error', message: error.message };
+    } finally {
+        // Cleanup
+        if (tempFilePath && fs.existsSync(tempFilePath)) {
+            fs.unlinkSync(tempFilePath);
+        }
+        // Ideally verify we delete from Gemini too? 
+        if (uploadResult) {
+            try {
+                await fileManager.deleteFile(uploadResult.file.name);
+                console.log("[AutoFoley] Cleaned up Gemini file");
+            } catch (e) { console.error("Failed to delete Gemini file", e); }
+        }
     }
 }

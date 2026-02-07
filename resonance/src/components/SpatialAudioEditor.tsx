@@ -1392,19 +1392,85 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
         setAiStatus("Watching Video...");
 
         try {
-            // Convert to Base64
-            const base64Data = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result as string);
-                reader.onerror = error => reject(error);
+            // Upload to Supabase Storage (Client-Side) to bypass Vercel 4.5MB Payload Limit
+            setAiStatus("Uploading Video...");
+            const fileExt = file.name.split('.').pop();
+            const fileName = `temp-videos/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+            // Create a dedicated real client for storage upload only
+            // This ensures we use the real storage bucket while keeping the app in "Demo Mode" (Mock Auth/DB)
+            const { createBrowserClient } = await import('@supabase/ssr');
+            const realSupabase = createBrowserClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+            );
+
+            const { error: uploadError } = await realSupabase.storage
+                .from('Videos') // Updated to user's bucket
+                .upload(fileName, file);
+
+            if (uploadError) {
+                console.error("Upload failed", uploadError);
+                throw new Error("Failed to upload video. Please try again.");
+            }
+
+            const { data: { publicUrl } } = realSupabase.storage
+                .from('Videos')
+                .getPublicUrl(fileName);
+
+            console.log("Video uploaded to:", publicUrl);
+
+            // Streaming Call to API Route
+            const response = await fetch('/api/analyze-video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ videoUrl: publicUrl, config: geminiConfig })
             });
 
-            // Synthetic thinking step
-            setThinkingSteps(prev => [...prev, { id: 'think', text: 'Watching video frames...', type: 'analysis', timestamp: Date.now() }]);
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+            let finalData = null;
 
-            // Blocking Call
-            const data = await analyzeVideoAction(base64Data, geminiConfig);
+            if (reader) {
+                let buffer = '';
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || ''; // Keep incomplete line
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const msg = JSON.parse(line);
+                            if (msg.type === 'log') {
+                                console.log("Stream:", msg.message);
+                                setAiStatus(msg.message); // Update UI Status
+                                setThinkingSteps(prev => [...prev, {
+                                    id: `log-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+                                    text: msg.message,
+                                    type: 'analysis',
+                                    timestamp: Date.now()
+                                }]);
+                            } else if (msg.type === 'result') {
+                                finalData = msg;
+                            } else if (msg.type === 'error') {
+                                throw new Error(msg.message);
+                            } else if (msg.data) {
+                                // Fallback for result if structure differs
+                                finalData = msg;
+                            }
+                        } catch (e) {
+                            console.warn("Stream parse error", e);
+                        }
+                    }
+                }
+            }
+
+            if (!finalData) throw new Error("Stream ended without result");
+            const data = finalData;
 
             if (data.type === 'result') {
                 console.log("Applying Filter Scene:", data.data);
