@@ -47,11 +47,18 @@ export default function AutoFoleyModal({ isOpen, onClose, onProcessVideo, isProc
     };
 
     const handleFile = (file: File) => {
-        if (file.type.startsWith('video/')) {
-            setSelectedFile(file);
-        } else {
+        if (!file.type.startsWith('video/')) {
             alert("Please upload a video file.");
+            return;
         }
+
+        const maxSize = 50 * 1024 * 1024; // 50MB
+        if (file.size > maxSize) {
+            alert("File file is too large. Please select a video under 50MB.");
+            return;
+        }
+
+        setSelectedFile(file);
     };
 
     const startProcessing = () => {

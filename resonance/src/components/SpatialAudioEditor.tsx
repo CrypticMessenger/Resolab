@@ -1199,7 +1199,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
             } catch (err) {
                 console.error("Save failed:", err);
                 setSaveStatus('error');
-                setAiStatus("Save Failed");
+                setAiStatus("Save Failed. Check Connection.");
             }
         } else {
             // Fallback to file download if no project ID (shouldn't happen in dashboard flow)
@@ -1363,7 +1363,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
         // Safety Timeout to prevent permanent "hanging" state
         const safetyTimeout = setTimeout(() => {
             if (thinkingSteps.length === 0) {
-                setThinkingSteps([{ id: 'timeout', text: 'Connection timed out. Please try again.', type: 'action', timestamp: Date.now() }]);
+                setThinkingSteps([{ id: 'timeout', text: 'Connection Timed Out. High traffic, please try again.', type: 'action', timestamp: Date.now() }]);
                 setAiStatus("Timeout");
                 setIsThinking(false);
             }
@@ -1406,8 +1406,8 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
         } catch (e: any) {
             console.error("AI Generation Failed:", e);
-            setAiStatus("Error");
-            setThinkingSteps(prev => [...prev, { id: 'err', text: `Error: ${e.message}`, type: 'action', timestamp: Date.now() }]);
+            setAiStatus("Generation Failed");
+            setThinkingSteps(prev => [...prev, { id: 'err', text: `Generation Failed: ${e.message}. Try a simpler prompt.`, type: 'action', timestamp: Date.now() }]);
         } finally {
             setIsThinking(false);
         }
@@ -1451,7 +1451,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
             if (uploadError) {
                 console.error("Upload failed", uploadError);
-                throw new Error("Failed to upload video. Please try again.");
+                throw new Error("Upload Failed. Check internet connection & file size.");
             }
 
             const { data: { publicUrl } } = realSupabase.storage
@@ -1509,7 +1509,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                 }
             }
 
-            if (!finalData) throw new Error("Stream ended without result");
+            if (!finalData) throw new Error("Analysis Error. The AI service is busy, please try again.");
             const data = finalData;
 
             if (data.type === 'result') {
@@ -1563,8 +1563,8 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
         } catch (e: any) {
             console.error("Auto-Foley Error", e);
-            setAiStatus("Error");
-            setThinkingSteps(prev => [...prev, { id: 'err', text: `Analysis failed: ${e.message}`, type: 'action', timestamp: Date.now() }]);
+            setAiStatus("Analysis Failed");
+            setThinkingSteps(prev => [...prev, { id: 'err', text: `Analysis Failed: ${e.message}. Please try a different video.`, type: 'action', timestamp: Date.now() }]);
         } finally {
             setIsThinking(false);
         }
