@@ -146,7 +146,7 @@ export default function Dashboard({ user, subscription }: { user: User, subscrip
             <div className="max-w-6xl mx-auto flex items-center justify-between mb-12">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-blue-600 flex items-center justify-center shadow-lg shadow-green-500/20">
-                        <span className="text-white font-bold">KY</span>
+                        <span className="text-white font-bold">RL</span>
                     </div>
                     <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
                 </div>

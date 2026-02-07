@@ -1,0 +1,53 @@
+sequenceDiagram
+    participant User
+    participant Frontend as Browser (React 19)
+    participant IDB as IndexedDB (Browser)
+    participant Supabase as Supabase Storage
+    participant Server as Next.js Server Action
+    participant GFile as Google AI File Manager
+    participant Gemini as Gemini 3 Flash
+    participant Asset as internal/AudioLibrary
+
+    User->>Frontend: Upload Video
+    Frontend->>Frontend: Check File Size (50MB Limit)
+    Frontend->>Supabase: Direct Upload (Bypass Vercel Limits)
+    Supabase-->>Frontend: Public URL
+    Frontend->>Server: Call analyzeVideoAction(videoUrl)
+    
+    activate Server
+    Server->>Supabase: Download Video Stream
+    Server->>GFile: Upload Temp File (uploadFile)
+    
+    loop Polling Status
+        Server->>GFile: Get File State
+        GFile-->>Server: STATE: "PROCESSING" -> "ACTIVE"
+    end
+    
+    Server->>Gemini: Generate Content (Prompt + File URI)
+    Note right of Gemini: 1. Detect Visual Events<br/>2. Estimate 3D Depth (Z-Axis)<br/>3. Assign Semantic Material Tags
+    Gemini-->>Server: JSON Scene Graph
+    
+    Server->>GFile: Delete File (Cleanup)
+    
+    loop For Each Sound Event
+        Server->>Asset: findBestAssetMatch(tag)
+        Asset-->>Server: Audio URL
+    end
+    
+    Server-->>Frontend: Hydrated Scene (Timestamps, 3D Coords, Audio URLs)
+    deactivate Server
+    
+    loop For Each Audio Source
+        Frontend->>IDB: 1. Check Local Cache (Key: ID/URL)
+        alt Cached Locally
+            IDB-->>Frontend: Return AudioBuffer (Instant)
+        else Not in Cache
+            Frontend->>Supabase: 2. Fetch Audio File (Network Request)
+            Supabase-->>Frontend: Audio Blob (Data)
+            Frontend->>IDB: 3. Save to IndexedDB (Persist)
+            IDB-->>Frontend: Buffer Ready
+        end
+    end
+    
+    Frontend->>Frontend: Initialize Three.js Objects
+    Frontend-->>User: Scene Ready & Playing 🎵

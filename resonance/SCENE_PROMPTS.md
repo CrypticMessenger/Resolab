@@ -14,7 +14,7 @@
 ---
 
 ## 💥 Scene 2: The "Shatter" (Transition)
-**Context:** The reveal of Resonance.
+**Context:** The reveal of Resolab.
 **Prompt:**
 > A single 2D green glowing line on a black background suddenly exploding outwards into a complex 3D holographic grid. The line shatters into thousands of glowing data points that form a 3D cubic lattice structure. Cinematic lighting, volumetric fog, blue and purple neon highlights. High velocity, explosive motion. "Tron Legacy" art style.
 

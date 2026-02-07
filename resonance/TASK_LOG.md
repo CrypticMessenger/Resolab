@@ -1,4 +1,4 @@
-# Resonance - Gemini 3 Hackathon Task List
+# Resolab - Gemini 3 Hackathon Task List
 
 ## Phase 1: Clone & Strip (The Foundation)
 - [ ] Initialize Project Artifacts (Implementation Plan, Task List) `[/]`

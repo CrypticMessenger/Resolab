@@ -1,16 +1,16 @@
-# Hackathon Submission: Resonance
+# Hackathon Submission: Resolab
 
 ## 💡 Inspiration
-The spark for **Resonance** came from a personal frustration. I tried building a VR game, but the spatial audio tools were prohibitively complex and expensive. I often create content for Instagram using free text-to-video generators, but the results always felt "soulless"—visually impressive but sonically flat. Syncing stock SFX manually was a tedious, hours-long process that drained the creativity out of the workflow.
+The spark for **Resolab** came from a personal frustration. I tried building a VR game, but the spatial audio tools were prohibitively complex and expensive. I often create content for Instagram using free text-to-video generators, but the results always felt "soulless"—visually impressive but sonically flat. Syncing stock SFX manually was a tedious, hours-long process that drained the creativity out of the workflow.
 
 I realized that **Google's Gemini 3** possesses an exceptional ability to understand not just *what* is in a video, but *where* it is. It can recognize spatial and temporal information—depth, movement, and material physics—better than any previous model.
 
 I thought: *What if I could just drag a video in, and have an AI "watch" it and populate the 3D soundscape for me?*
 
-Resonance was born to bridge this gap. It creates immersive, high-quality soundscapes by extracting the "hidden layer" of spatial information from video, reducing hours of manual sync work to seconds of AI processing.
+Resolab was born to bridge this gap. It creates immersive, high-quality soundscapes by extracting the "hidden layer" of spatial information from video, reducing hours of manual sync work to seconds of AI processing.
 
 ## 🚀 What it does
-**Resonance** is the world's first **Browser-Based DAW with AI Integration for Multimodal Understanding**. It transforms natural language and video into immersive 3D audio environments.
+**Resolab** is the world's first **Browser-Based DAW with AI Integration for Multimodal Understanding**. It transforms natural language and video into immersive 3D audio environments.
 
 1.  **Auto-Foley (Video-to-Spatial):** Users upload a video, and our "Auto-Foley Agent" (Gemini 3) analyzes the visual frames. It identifies events (footsteps, breaking glass, engines), determines their material properties, and—crucially—estimates their **3D coordinates and trajectory** relative to the camera POV. It then retrieves or generates the corresponding SFX and places them in the 3D scene, perfectly synchronized.
 2.  **Text-to-Scene (AI Director):** The AI Director abstracts away the complexity of spatial audio. If a user has a scene but wants to add specific elements, they can simply type *"add a bird around my head"*. Gemini 3 recognizes what "around my head" means spatially, selects the appropriate bird sound, and generates the orbital trajectory automatically—no manual engineering required.
@@ -23,12 +23,12 @@ Resonance was born to bridge this gap. It creates immersive, high-quality sounds
 *   **Frontend:** **Next.js 16 (App Router)**, **React 19**, **Tailwind CSS 4**.
 *   **3D / Visuals:** **Three.js**.
 *   **AI:** **Google Gemini 3 Flash Preview** via Google AI Studio API Keys.
-*   **Audio Engine:** Native **Web Audio API** (Oscillators, GainNodes, Panners, Convolvers).
+*   **Audio Engine:** Native **Web Audio API** (GainNodes, Panners, Convolvers).
 *   **Backend & Storage:** **Supabase** (PostgreSQL, Auth, Storage).
 *   **Dev Tools:** **Antigravity** (Spec-Driven Development with Gemini Agents).
 
 ### Architecture
-Resonance bridges a reactive UI, a robust 3D scene graph, and a low-latency audio engine.
+Resolab bridges a reactive UI, a robust 3D scene graph, and a low-latency audio engine.
 
 ```mermaid
 graph TD
@@ -61,6 +61,7 @@ graph TD
 ```
 
 ### Implementation Highlights
+*   **Semantic Asset Matching:** We built a lightweight tag matching engine (`findBestAssetMatch`) that maps Gemini's semantic labels (e.g., "gentle breeze") to our internal asset database. It uses a 3-stage fallback system (Exact -> Partial -> Category) to ensure that even vague AI descriptions result in a relevant sound file, minimizing "silent" failures.
 *   **Hybrid Upload Strategy:** To overcome the 4.5MB Serverless limit, we engineered a "Direct-to-Storage, Stream-to-AI" pipeline.
 *   **The "Zombie" Canvas Fix:** We implemented a rigid state-machine lock (`isSceneReady`) to prevent race conditions between Repaints and Audio Graph initializations.
 *   **Gemini as a Physics Engine:** We don't just ask Gemini for text; we ask it for *vectors*. By few-shot prompting the model with our grid's coordinate system, we turned an LLM into a spatial reasoning engine.
@@ -82,9 +83,10 @@ graph TD
 *   **Audio on the Web is Ready:** The Web Audio API combined with React 19 is powerful enough for pro-grade tools, provided you manage the "Imperative vs Declarative" sync carefully.
 *   **Vibe Coding vs. Spec-Driven Development:** We learned that "Vibe Coding" is excellent for sprinting to validate ideas quickly, but adopting **Spec-Driven Development** is the way forward for true AI-native engineering. It is the difference between running a sprint and a marathon—essential for long-term robustness.
 
-## 🔮 What's next for Resonance - The **IAMF** Revolution
+## 🔮 What's next for Resolab - The **IAMF** Revolution
+*   **Semantic Vector Search:** While our current tag-matching system is effective, we plan to implement **Vector Embeddings** for our entire audio library. This will allow the AI to find sounds based on "vibe" and acoustic similarity (e.g., matching a "sad piano" request to a specific minor-key sample) rather than just keyword tags.
 *   **Third-Party Sound Libraries:** Currently, we rely on a limited open-source sound set. We plan to integrate with massive third-party APIs (like Freesound or Epidemic Sound) to provide users with an infinite palette of high-quality audio assets to tweak and spatialise.
-*   **World-First IAMF Export:** Resonance is building the world's first browser-based pipeline for **IAMF (Immersive Audio Model and Formats)**, the revolutionary open standard co-developed by **Google** and AOMedia. IAMF is the backbone of next-gen spatial audio on **YouTube** and **Android**. Resonance democratizes this powerful format, allowing *any* creator to generate studio-grade, Google-compatible spatial audio mixes directly from their browser, unlocking the full potential of the immersive web for everyone and for all devices including sound bars, car speakers, and mobile.
+*   **World-First IAMF Export:** Resolab is building the world's first browser-based pipeline for **IAMF (Immersive Audio Model and Formats)**, the revolutionary open standard co-developed by **Google** and AOMedia. IAMF is the backbone of next-gen spatial audio on **YouTube** and **Android**. Resolab democratizes this powerful format, allowing *any* creator to generate studio-grade, Google-compatible spatial audio mixes directly from their browser, unlocking the full potential of the immersive web for everyone and for all devices including sound bars, car speakers, and mobile.
 *   **XR Engine Bridge:** One-click export of scene graphs to **Unity** and **Unreal Engine**, allowing game developers to "prompt" a level's audio and drop it directly into their game world.
 *   **Collaborative Logic:** Multiplayer sessions where a Director (AI) and a Sound Designer (Human) can co-create deeply interactive audio logic in real-time.
 

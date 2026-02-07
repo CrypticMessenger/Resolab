@@ -6,7 +6,7 @@
 ### Phase 1: The "Veo 3" Upgrade
 "We are entering the golden age of generative video. Models like Veo 2 create visual masterpieces... but they are silent. They are ghost worlds."
 
-"Meet Resonance. The first spatial audio DAW powered by Gemini 3. We took that silent video and gave it a voice, effectively upgrading it to Veo 3 quality using pure AI reasoning."
+"Meet Resolab. The first spatial audio DAW powered by Gemini 3. We took that silent video and gave it a voice, effectively upgrading it to Veo 3 quality using pure AI reasoning."
 
 ---
 
@@ -22,7 +22,7 @@
 ### Phase 3: The Director (Regeneration)
 "But Gemini 3 isn't just a generator; it's a Director. It understands physics, not just keywords."
 
-"Conventional tools make you delete tracks manually. But Resonance is generative."
+"Conventional tools make you delete tracks manually. But Resolab is generative."
 
 "When I change the context, the AI Director wipes the slate and reconstructs the physics from scratch. It swaps earthly birds for alien drones and adjusts the atmospheric pressure."
 
@@ -31,15 +31,15 @@
 ### Phase 4: Natural Language Control
 "I don't need complex engineering tools. I just need English."
 
-"Resonance understands that 'circle' means an orbital trajectory. It modifies the automation curve instantly."
+"Resolab understands that 'circle' means an orbital trajectory. It modifies the automation curve instantly."
 
 ---
 
 ### Phase 5: IAMF Export & Conclusion
 "But why build in 3D if you export to 2D?"
 
-"Resonance is one of the first web tools to support IAMF—the new open standard from Google and Samsung."
+"Resolab is one of the first web tools to support IAMF—the new open standard from Google and Samsung."
 
 "We don't just render pixels. We render an object-based audio container that adapts to your device—whether it's a soundbar or the Apple Vision Pro. Build once, resonate everywhere."
 
-"Resonance. The Audio Layer for the Generative Web."
+"Resolab. The Audio Layer for the Generative Web."
