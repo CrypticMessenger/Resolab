@@ -131,6 +131,8 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
         timelineDuration: 10
     });
 
+    const [isSceneReady, setIsSceneReady] = useState(false);
+
     const { theme } = useTheme();
 
     // Update Scene Background on Theme Change
@@ -186,6 +188,12 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
     useEffect(() => {
         if (!containerRef.current) return;
 
+        // Cleanup any existing children (Prevent Duplicate Canvases)
+        if (containerRef.current.children.length > 0) {
+            console.warn("Found existing canvas in container. Force clearing.");
+            containerRef.current.innerHTML = '';
+        }
+
         // 1. Three.js Setup
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x050505);
@@ -198,6 +206,9 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
+        // Ensure canvas is absolute/top-left to prevent flow layout issues if duplicates somehow occur
+        renderer.domElement.style.display = 'block';
+
         containerRef.current.appendChild(renderer.domElement);
         rendererRef.current = renderer;
 
@@ -255,6 +266,17 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
         scene.add(headGroup);
 
+        // 1b. Restore Existing Sources (Crucial for HMR / Re-renders)
+        // If the scene was recreated (e.g. theme change), re-add existing sources
+        if (sourcesRef.current.length > 0) {
+            console.log("Restoring existing sources to new scene:", sourcesRef.current.length);
+            sourcesRef.current.forEach(s => {
+                scene.add(s.mesh);
+                scene.add(s.targetMesh);
+                scene.add(s.trajectoryLine);
+            });
+        }
+
         // 2. Event Listeners
         const onResize = () => {
             if (cameraRef.current && rendererRef.current) {
@@ -275,108 +297,113 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
         // 3. Animation Loop
         const animate = () => {
-            animationFrameRef.current = requestAnimationFrame(animate);
-            const now = Date.now();
+            try {
+                animationFrameRef.current = requestAnimationFrame(animate);
+                const now = Date.now();
 
-            // Raycasting
-            if (cameraRef.current && sceneRef.current) {
-                raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
-                const intersectObjects = sourcesRef.current.map(s => s.mesh);
-                const intersects = raycasterRef.current.intersectObjects(intersectObjects);
+                // Raycasting
+                if (cameraRef.current && sceneRef.current) {
+                    raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
+                    const intersectObjects = sourcesRef.current.map(s => s.mesh);
+                    const intersects = raycasterRef.current.intersectObjects(intersectObjects);
 
-                if (intersects.length > 0) {
-                    const hitObj = intersects[0].object;
-                    const source = sourcesRef.current.find(s => s.id === hitObj.userData.id);
-                    if (source) {
-                        setTooltip(prev => ({
-                            ...prev,
-                            visible: true,
-                            text: source.name,
-                            color: '#' + source.color.getHexString()
-                        }));
-                    }
-                } else {
-                    setTooltip(prev => ({ ...prev, visible: false }));
-                }
-            }
-
-            // Source Updates
-            sourcesRef.current.forEach(s => {
-                // Timeline Logic
-                if (isPlayingRef.current) {
-                    const t = currentTimeRef.current;
-                    const duration = s.timelineDuration || 10;
-                    const isActive = t >= s.timelineStart && t < s.timelineStart + duration;
-
-                    if (isActive && !s.isPlaying) {
-                        if (audioCtxRef.current) s.play(audioCtxRef.current, t - s.timelineStart);
-                    } else if (!isActive && s.isPlaying) {
-                        s.stop();
+                    if (intersects.length > 0) {
+                        const hitObj = intersects[0].object;
+                        const source = sourcesRef.current.find(s => s.id === hitObj.userData.id);
+                        if (source) {
+                            setTooltip(prev => ({
+                                ...prev,
+                                visible: true,
+                                text: source.name,
+                                color: '#' + source.color.getHexString()
+                            }));
+                        }
+                    } else {
+                        setTooltip(prev => ({ ...prev, visible: false }));
                     }
                 }
 
-                // Automation
-                if (s.automationType !== 'none') {
-                    // Use Timeline Time if playing, otherwise use current time or preview time?
-                    // Actually, if we scrub, we want to see result.
-                    // If playing, use `currentTimeRef.current`.
-                    // If NOT playing, use `currentTime`.
-
-                    // Note: `currentTimeRef` is updated in animate loop for smooth playback, 
-                    // `currentTime` state is used for seeking/rendering ticks.
-
-                    if (typeof s.applyTrajectory === 'function') {
+                // Source Updates
+                sourcesRef.current.forEach(s => {
+                    // Timeline Logic
+                    if (isPlayingRef.current) {
                         const t = currentTimeRef.current;
-                        s.applyTrajectory(t);
-                    } else {
-                        // Fallback for HMR / Stale objects
-                        console.warn("applyTrajectory missing on source", s.id);
+                        const duration = s.timelineDuration || 10;
+                        const isActive = t >= s.timelineStart && t < s.timelineStart + duration;
+
+                        if (isActive && !s.isPlaying) {
+                            if (audioCtxRef.current) s.play(audioCtxRef.current, t - s.timelineStart);
+                        } else if (!isActive && s.isPlaying) {
+                            s.stop();
+                        }
+                    }
+
+                    // Automation
+                    if (s.automationType !== 'none') {
+                        // Use Timeline Time if playing, otherwise use current time or preview time?
+                        // Actually, if we scrub, we want to see result.
+                        // If playing, use `currentTimeRef.current`.
+                        // If NOT playing, use `currentTime`.
+
+                        // Note: `currentTimeRef` is updated in animate loop for smooth playback, 
+                        // `currentTime` state is used for seeking/rendering ticks.
+
+                        if (typeof s.applyTrajectory === 'function') {
+                            const t = currentTimeRef.current;
+                            s.applyTrajectory(t);
+                        } else {
+                            // Fallback for HMR / Stale objects
+                            console.warn("applyTrajectory missing on source", s.id);
+                        }
+                    }
+
+
+                    // Visualizer
+                    if (s.isPlaying && s.analyser && s.dataArray) {
+                        s.analyser.getByteFrequencyData(s.dataArray as any);
+                        let sum = 0; for (let i = 0; i < s.dataArray.length; i++) sum += s.dataArray[i];
+                        const avg = sum / s.dataArray.length;
+                        const scale = 1 + (avg / 50);
+                        s.mesh.scale.set(scale, scale, scale);
+                        // @ts-expect-error - emissiveIntensity exists on StandardMaterial
+                        s.mesh.material.emissiveIntensity = avg / 100;
+                    }
+                });
+
+                // Timeline Increment
+                if (isPlayingRef.current) {
+                    const delta = (now - lastFrameTimeRef.current) / 1000;
+                    if (delta < 0.1) { // Prevent huge jumps
+                        const next = currentTimeRef.current + delta;
+
+                        // Calculate dynamic end time based on sources
+                        const maxSourceTime = sourcesRef.current.reduce((max, s) => {
+                            return Math.max(max, s.timelineStart + (s.timelineDuration || 10));
+                        }, 0);
+                        // Add a small buffer or ensure at least minimal playback
+                        const stopTime = Math.max(maxSourceTime, 2.0);
+
+                        if (next >= stopTime) {
+                            setIsPlaying(false);
+                            isPlayingRef.current = false; // Immediate update
+                            setCurrentTime(0);
+                            currentTimeRef.current = 0;
+                            sourcesRef.current.forEach(s => s.stop());
+                        } else {
+                            setCurrentTime(next);
+                            currentTimeRef.current = next;
+                        }
                     }
                 }
+                lastFrameTimeRef.current = now;
 
-
-                // Visualizer
-                if (s.isPlaying && s.analyser && s.dataArray) {
-                    s.analyser.getByteFrequencyData(s.dataArray as any);
-                    let sum = 0; for (let i = 0; i < s.dataArray.length; i++) sum += s.dataArray[i];
-                    const avg = sum / s.dataArray.length;
-                    const scale = 1 + (avg / 50);
-                    s.mesh.scale.set(scale, scale, scale);
-                    // @ts-expect-error - emissiveIntensity exists on StandardMaterial
-                    s.mesh.material.emissiveIntensity = avg / 100;
+                controls.update();
+                if (rendererRef.current && sceneRef.current && cameraRef.current) {
+                    rendererRef.current.render(sceneRef.current, cameraRef.current);
                 }
-            });
-
-            // Timeline Increment
-            if (isPlayingRef.current) {
-                const delta = (now - lastFrameTimeRef.current) / 1000;
-                if (delta < 0.1) { // Prevent huge jumps
-                    const next = currentTimeRef.current + delta;
-
-                    // Calculate dynamic end time based on sources
-                    const maxSourceTime = sourcesRef.current.reduce((max, s) => {
-                        return Math.max(max, s.timelineStart + (s.timelineDuration || 10));
-                    }, 0);
-                    // Add a small buffer or ensure at least minimal playback
-                    const stopTime = Math.max(maxSourceTime, 2.0);
-
-                    if (next >= stopTime) {
-                        setIsPlaying(false);
-                        isPlayingRef.current = false; // Immediate update
-                        setCurrentTime(0);
-                        currentTimeRef.current = 0;
-                        sourcesRef.current.forEach(s => s.stop());
-                    } else {
-                        setCurrentTime(next);
-                        currentTimeRef.current = next;
-                    }
-                }
-            }
-            lastFrameTimeRef.current = now;
-
-            controls.update();
-            if (rendererRef.current && sceneRef.current && cameraRef.current) {
-                rendererRef.current.render(sceneRef.current, cameraRef.current);
+            } catch (e) {
+                console.error("CRITICAL: Animation Loop Crashed", e);
+                cancelAnimationFrame(animationFrameRef.current);
             }
         };
         animate();
@@ -386,7 +413,13 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
             createSource();
         }
 
+        // Set Ready
+        setIsSceneReady(true);
+
         return () => {
+            // Set Not Ready
+            setIsSceneReady(false);
+
             window.removeEventListener('resize', onResize);
             window.removeEventListener('mousemove', onMouseMove);
             cancelAnimationFrame(animationFrameRef.current);
@@ -398,23 +431,24 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
     }, [theme]); // Re-run init if theme changes to reset grid/bg properly, or we could just update props
 
     // --- Load Project ---
+    // --- Load Project ---
     useEffect(() => {
-        if (!projectId) return;
+        if (!projectId || !isSceneReady) return;
 
         const fetchProject = async () => {
             try {
                 const res = await fetch(`/api/projects/${projectId}`);
                 const json = await res.json();
                 if (json.project && json.project.data && Object.keys(json.project.data).length > 0) {
-                    // Small delay to ensure scene is ready
-                    setTimeout(() => loadProject(json.project.data), 100);
+                    console.log("Scene Ready. Loading project data now.");
+                    loadProject(json.project.data);
                 }
             } catch (e) {
                 console.error("Failed to load project", e);
             }
         };
         fetchProject();
-    }, [projectId]);
+    }, [projectId, isSceneReady]);
 
     // --- Audio Logic ---
     const initGlobalAudio = async () => {
@@ -1208,8 +1242,14 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
             sourcesData.forEach((sData: any) => {
                 const color = new THREE.Color(sData.color);
                 const s = new SourceObject(sData.id, sData.name, color);
+
+                // Safe Coordinate Extraction
+                const safeX = Number(sData.position?.x) || 0;
+                const safeY = Number(sData.position?.y) || 0;
+                const safeZ = typeof sData.position?.z === 'number' ? sData.position.z : -5;
+
                 // Use updatePosition to sync mesh and panner immediately
-                s.updatePosition(sData.position.x, sData.position.y, sData.position.z);
+                s.updatePosition(safeX, safeY, safeZ);
 
                 s.volume = sData.volume;
                 s.timelineStart = sData.timelineStart || 0;
@@ -1548,6 +1588,9 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
             {/* Top Right Controls */}
             <div className="absolute top-4 right-4 z-20 flex items-center gap-3">
                 {/* Save Status Indicator */}
+                {/* Debug Logging */}
+                {/* <div className="hidden">Debug Mode Active</div> */}
+
                 {saveStatus !== 'idle' && (
                     <div className={`text-[10px] font-medium px-2 py-1 rounded bg-black/50 backdrop-blur border 
                         ${saveStatus === 'saving' ? 'text-yellow-400 border-yellow-500/50' : ''}
