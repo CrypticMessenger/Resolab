@@ -4,6 +4,7 @@
 If you encounter a `Model Overload` or `Limit Exceeded` error (common with the free tier of Gemini Flash Preview), you have two options:
 
 ### Option 1: The Judge-Friendly Settings UI (Recommended)
+Checkout this 30 second video: [Link](https://drive.google.com/file/d/13ftJJ7d2IwIe8iaBMBcmTw-D7wLISx2J/view?usp=sharing)
 You don't need to restart the server! We built a hot-swappable settings menu.
 1.  Open any project in the Editor.
 2.  Click the **Settings Logic** icon (Gear) in the top-right toolbar.
@@ -20,6 +21,7 @@ You don't need to restart the server! We built a hot-swappable settings menu.
 ---
 
 ## 🎥 How do I use the Auto-Foley Agent?
+Checkout this 30 second video: [Link](https://drive.google.com/file/d/1W9AHGqrOhqzizrjnmiU9RCcGYg7ttS89/view?usp=sharing)
 The Auto-Foley agent is the "Magic Drag & Drop" feature.
 
 1.  **Locate a Video File:** Ensure it's under 50MB.
