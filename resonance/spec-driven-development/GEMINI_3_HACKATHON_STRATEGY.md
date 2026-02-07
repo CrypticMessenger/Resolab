@@ -1,7 +1,7 @@
-# Spaudio: Gemini 3 Hackathon Strategy & Roadmap
+# Resolab: Gemini 3 Hackathon Strategy & Roadmap
 
 **Target Archetype:** Archetype C: The "Vibe Coded" Dream Machine
-**Core Concept:** A "Generative Reality" engine where the user speaks a soundscape, and Spaudio builds it using Gemini 3's Thinking Mode and Eclipsa Audio (IAMF).
+**Core Concept:** A "Generative Reality" engine where the user speaks a soundscape, and Resolab builds it using Gemini 3's Thinking Mode and Eclipsa Audio (IAMF).
 
 ---
 

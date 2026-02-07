@@ -1,206 +1,63 @@
-# Resolab - Spatial Audio Studio
+## Inspiration
+The spark for **Resolab** came from a personal frustration. I tried building a VR game, but the spatial audio tools were prohibitively complex and expensive. I often create content for Instagram using free text-to-video generators, but the results always felt "soulless"—visually impressive but sonically flat. Syncing stock SFX manually was a tedious, hours-long process that drained the creativity out of the workflow.
+I realized that **Google's Gemini 3** possesses an exceptional ability to understand not just *what* is in a video, but *where* it is. It can recognize spatial and temporal information—depth, movement, and material physics—better than any previous model.
+I thought: *What if I could just drag a video in, and have an AI "watch" it and populate the 3D soundscape for me?*
+Resolab was born to bridge this gap. It creates immersive, high-quality soundscapes by extracting the "hidden layer" of spatial information from video, reducing hours of manual sync work to seconds of AI processing.
 
-> **The Future of Spatial Audio Authoring.** Define soundscapes with natural language, design with multimodal AI, and export for the spatial web.
+## What it does
+**Resolab** is the world's first **Browser-Based Digital-Audio-Workstation(DAW) with AI Integration for Multimodal Understanding**. It transforms natural language and video into immersive 3D audio environments.
 
-![Status](https://img.shields.io/badge/status-beta-purple) ![Version](https://img.shields.io/badge/version-2.0.0-blue) ![AI](https://img.shields.io/badge/AI-Gemini_3-orange)
+1.  **Auto-Foley (Video-to-Spatial):** Users upload a video, and our "Auto-Foley Agent" (Gemini 3) analyzes the visual frames. It identifies events (footsteps, breaking glass, engines), determines their material properties, and—crucially—estimates their **3D coordinates and trajectory** relative to the camera POV. It then retrieves or generates the corresponding SFX and places them in the 3D scene, perfectly synchronized.
+2.  **Text-to-Scene (AI Director):** The AI Director abstracts away the complexity of spatial audio. If a user has a scene but wants to add specific elements, they can simply type *"add a bird around my head"*. Gemini 3 recognizes what "around my head" means spatially, selects the appropriate bird sound, and generates the orbital trajectory automatically—no manual engineering required.
+3. **Creative Freedom:** AI created scenes might not soothe your creative pallete, thus Resolab provides you capability to completely customize the scene, by attaching custom sound effects, change trajectories and add more detail to the soundscape.
+4.  **Visual DAW:** It visualizes sound as 3D objects in a browser-based canvas. Users can grab, move, and animate sound sources intuitively.
+5.  **Spatial Export:** The engine renders a high-fidelity spatial mix or a multi-channel WAV, ready for VR/AR development or immersive video.
 
----
+## How we built it
+### Technology Stack
+*   **AI:** **Google Gemini 3 Flash Preview** via Google AI Studio API Keys,  **Antigravity** (Spec-Driven Development with Gemini Agents).
+*   **Frontend:** **Next.js 16 (App Router)**, **React 19**, **Tailwind CSS 4**.
+*   **3D / Visuals:** **Three.js**.
+*   **Audio Engine:** Native **Web Audio API** (Oscillators, GainNodes, Panners, Convolvers).
+*   **Backend & Storage:** **Supabase** (PostgreSQL, Auth, Storage).
 
-## 📋 Table of Contents
+### Architecture
+Resolab bridges a reactive UI, a robust 3D scene graph, and a low-latency audio engine.
+#### Sequence Diagram
+[![](https://mermaid.ink/img/pako:eNp1Vltu4zYU3QrBj0JBbcfOsxWKAH7FdZs4RuzkY-AfWrqxOUORKkk5cYJsoVvoKrqvLqGXpPwaawTDoMhzX-c-qA-aqBRoTA38VYBMoMfZQrNsJgk-OdOWJzxn0pInA_p491YraUGmhBnS0eoVQSR6BJZY0vr15Bg_7HUcdChTeIMUX6JSqgI7KXI2ZwacwHY9sUqzBVSgQa_QOGJH8GYbX81mp51YruSxwOCWC697oNQCV-0h8Tv3TKKBilgHkHHJvURYnZNbwczyGNk2BqwDciRHSyZO20XK1R2fa6bXAe_4rN_cbAiMyVMuFEvJM09BBcjm7ADWXULyLXg64e9AosvmfYfc8YzbkyOxDW0x6XENmJTSSNRZ58wY8gw6ARGkTSm-kakfmB0Xc8ET8vR4d2zE84yeMSEIkifW7-CjCMxHK7d-0qLUH_6xQviKWSizVJr260O_1avc8YLp17Cpzi3aZ3JL4BSyPPATFX7HrQ9sC6VyMlZCcLlAjcwWJhxUaR1gJgPbCIQdzh_X98KfTNvTfkxmdPz40O1PJsPRYEZJ_QZ32t3p8Lk_o0EaWdv3ZmfQV5WzKEE7arqeYkuisVZZbsnPwZGnx2EZzkghSvPF0hL1QjbyrQbpgXXZfuamYIL0V6jF_DbXpzdnDdI3lmdO_XkPcbldkuhLvf3GzYlHnDdc-fKFRMcyLGZM-j2iNUdFU7YomQq29sP_Y_IwIpMEfScDzfJldYiB0x4IdLBMUlcAk0V-nKFbpUmfJUsyUQVOGB9FRZ58s8Xkhcu0A8b6V_Q4WUaWLU52Av5g32Pfk7uKrk7LQRP8vk5dYtIyzmjKM7TIstzUHJtdpXSKy63iTUulUFnuVbEGWYwYG3Pn-1634QT1KQ5z4E4lmJcuSqI7f8I6xgl7ipb34mbCBkAa0GK9O3MPKjyM8hFsoWXwpFO8vLiRPpQYp7R7akHgNMYCxBkX1B9qrRxCWH23YLdRhvyPwL4q_Q3N4g1k9k38eBoF-Y5QcxL1mGUnPzTu6cKanrAVEKv2b54xaMOPDB7RUVKAl1q6x9y2Wr4rm8qZPZTcYv-4cT1dagB3Oz3Mv2KLmu-kUMxdDHFZYd4o-YmMBVu7YfXfP3__S2t0oXlKY6sLqNEMdMbcK_1wumbULiGDGXWTSLjR4MbOJwrhzfRFqWwjp1WxWNL4hWEea7TIU6zO8vLf7mp0CXQX28_SuNU8a3ktNP6gbzSuNxtN97Qur64vry6aZ9f4u2i2rmp0TePdYbPVajavW-eXZxe_nH_W6Lt3QhZC1CikHO_z-_AJ4r9EPv8H-du44w?type=png)](https://mermaid.live/edit#pako:eNp1Vltu4zYU3QrBj0JBbcfOsxWKAH7FdZs4RuzkY-AfWrqxOUORKkk5cYJsoVvoKrqvLqGXpPwaawTDoMhzX-c-qA-aqBRoTA38VYBMoMfZQrNsJgk-OdOWJzxn0pInA_p491YraUGmhBnS0eoVQSR6BJZY0vr15Bg_7HUcdChTeIMUX6JSqgI7KXI2ZwacwHY9sUqzBVSgQa_QOGJH8GYbX81mp51YruSxwOCWC697oNQCV-0h8Tv3TKKBilgHkHHJvURYnZNbwczyGNk2BqwDciRHSyZO20XK1R2fa6bXAe_4rN_cbAiMyVMuFEvJM09BBcjm7ADWXULyLXg64e9AosvmfYfc8YzbkyOxDW0x6XENmJTSSNRZ58wY8gw6ARGkTSm-kakfmB0Xc8ET8vR4d2zE84yeMSEIkifW7-CjCMxHK7d-0qLUH_6xQviKWSizVJr260O_1avc8YLp17Cpzi3aZ3JL4BSyPPATFX7HrQ9sC6VyMlZCcLlAjcwWJhxUaR1gJgPbCIQdzh_X98KfTNvTfkxmdPz40O1PJsPRYEZJ_QZ32t3p8Lk_o0EaWdv3ZmfQV5WzKEE7arqeYkuisVZZbsnPwZGnx2EZzkghSvPF0hL1QjbyrQbpgXXZfuamYIL0V6jF_DbXpzdnDdI3lmdO_XkPcbldkuhLvf3GzYlHnDdc-fKFRMcyLGZM-j2iNUdFU7YomQq29sP_Y_IwIpMEfScDzfJldYiB0x4IdLBMUlcAk0V-nKFbpUmfJUsyUQVOGB9FRZ58s8Xkhcu0A8b6V_Q4WUaWLU52Av5g32Pfk7uKrk7LQRP8vk5dYtIyzmjKM7TIstzUHJtdpXSKy63iTUulUFnuVbEGWYwYG3Pn-1634QT1KQ5z4E4lmJcuSqI7f8I6xgl7ipb34mbCBkAa0GK9O3MPKjyM8hFsoWXwpFO8vLiRPpQYp7R7akHgNMYCxBkX1B9qrRxCWH23YLdRhvyPwL4q_Q3N4g1k9k38eBoF-Y5QcxL1mGUnPzTu6cKanrAVEKv2b54xaMOPDB7RUVKAl1q6x9y2Wr4rm8qZPZTcYv-4cT1dagB3Oz3Mv2KLmu-kUMxdDHFZYd4o-YmMBVu7YfXfP3__S2t0oXlKY6sLqNEMdMbcK_1wumbULiGDGXWTSLjR4MbOJwrhzfRFqWwjp1WxWNL4hWEea7TIU6zO8vLf7mp0CXQX28_SuNU8a3ktNP6gbzSuNxtN97Qur64vry6aZ9f4u2i2rmp0TePdYbPVajavW-eXZxe_nH_W6Lt3QhZC1CikHO_z-_AJ4r9EPv8H-du44w)
 
-- [Overview](#-overview)
-- [The Resolab Workflow](#-the-resolab-workflow)
-- [Feature Deep Dive](#-feature-deep-dive)
-    - [AI Director (Gemini 3)](#-ai-director-gemini-3)
-    - [Auto-Foley Agent](#-auto-foley-agent)
-    - [Spatial Audio Engine](#-spatial-audio-engine)
-- [Architecture](#-architecture)
-- [Tech Stack](#-tech-stack)
-- [Getting Started](#-getting-started)
+#### State diagram
+[![](https://mermaid.ink/img/pako:eNqFVW1S2zAQvYpGM3SgExgTSj78g05IIIQhwODQzrTpD2EvjhpbcmUZCAxX6BV6it6rR-jKSmKZwtR_bK3e2923u5KfaCgjoD7NNdMw4CxWLN2-a04FwSfiCkLNpSBnV9aysUG2t7fJdQ6KjERWaLO0W1_ff8PFARlFCViL-SpN11kiWcRFTHwyUCwm7_AlM_KJRyBfYCczLuYWOllkQC6VTDNdi95POAhNAmSTMxnzsEqilOHEe7JmN7_-DMJ5wB8BIxyQfW98-JFsHikl1VYFrkCGMijrYL0iKygydsNyIIGWqAYqWg1omCaoT65AF0rk5PrqzGKf7avK02B7giWLnOdIQCCSWLSo6Q5A3WHdHd2bvdHWS_FrN69oH8h7UbVirQN3rG9HiYM0zOExT2DMBMpVJkErUUsylDLG1vVGFbeGLcmQcsGdzg5BgDLJ9qXQ2EuHW4ca9mlwcW6yDZFEhoplM6xNXiQOq4SUzU2AiSIzcwYJYIAJpBkx-eROc5egsuh5DnrMdDizmY1ZRiYszo007EJe69e6tIZ5sohQgmXZBrsp_mdgN5dsKf7pX-X3reHts3BmpnckIniAaHCITuW8yF6Mr4UZ1jGgvl4RcYksax7z3KmIAzD4gN3BRK7CnIO-l2qOIn8UkDtVd2GGdljc3oIq53Yd54TrN9Oq40cC9WOVznCwKoqLsdeDAjgNSjzXnCXmjF7cfMdj5-hZoQzjM9yspAcLEZJzvPDqba0qXt5fOJGK4bV3B-ups_H__Pr52-2Ui3ylV-ZKCwyw2lqbSsBlwhZ2fswXStVaigq82q75MmBW5G_6PHrIpFpOJY5dOF9aKnyFeOl4debxVKaZOT21Krlql1cbbdBY8Yj6WhXQoCmolJklLasxpXoGKUypj58Jj2d6SqfiGUkZE1-kTFc8JYt4Rv1bluS4KrKo-hWtrQpw2FVfFkJTv-ntl06o_0QfqN_ydlqd9n6z3em0mi2vvdegC-rvNts7zc5et9XsdHc7e3vN3ecGfSzDejud9ocuPu3u_q7X9bxWg0LE8TYf279h-VN8_gsSICdX?type=png)](https://mermaid.live/edit#pako:eNqFVW1S2zAQvYpGM3SgExgTSj78g05IIIQhwODQzrTpD2EvjhpbcmUZCAxX6BV6it6rR-jKSmKZwtR_bK3e2923u5KfaCgjoD7NNdMw4CxWLN2-a04FwSfiCkLNpSBnV9aysUG2t7fJdQ6KjERWaLO0W1_ff8PFARlFCViL-SpN11kiWcRFTHwyUCwm7_AlM_KJRyBfYCczLuYWOllkQC6VTDNdi95POAhNAmSTMxnzsEqilOHEe7JmN7_-DMJ5wB8BIxyQfW98-JFsHikl1VYFrkCGMijrYL0iKygydsNyIIGWqAYqWg1omCaoT65AF0rk5PrqzGKf7avK02B7giWLnOdIQCCSWLSo6Q5A3WHdHd2bvdHWS_FrN69oH8h7UbVirQN3rG9HiYM0zOExT2DMBMpVJkErUUsylDLG1vVGFbeGLcmQcsGdzg5BgDLJ9qXQ2EuHW4ca9mlwcW6yDZFEhoplM6xNXiQOq4SUzU2AiSIzcwYJYIAJpBkx-eROc5egsuh5DnrMdDizmY1ZRiYszo007EJe69e6tIZ5sohQgmXZBrsp_mdgN5dsKf7pX-X3reHts3BmpnckIniAaHCITuW8yF6Mr4UZ1jGgvl4RcYksax7z3KmIAzD4gN3BRK7CnIO-l2qOIn8UkDtVd2GGdljc3oIq53Yd54TrN9Oq40cC9WOVznCwKoqLsdeDAjgNSjzXnCXmjF7cfMdj5-hZoQzjM9yspAcLEZJzvPDqba0qXt5fOJGK4bV3B-ups_H__Pr52-2Ui3ylV-ZKCwyw2lqbSsBlwhZ2fswXStVaigq82q75MmBW5G_6PHrIpFpOJY5dOF9aKnyFeOl4debxVKaZOT21Krlql1cbbdBY8Yj6WhXQoCmolJklLasxpXoGKUypj58Jj2d6SqfiGUkZE1-kTFc8JYt4Rv1bluS4KrKo-hWtrQpw2FVfFkJTv-ntl06o_0QfqN_ydlqd9n6z3em0mi2vvdegC-rvNts7zc5et9XsdHc7e3vN3ecGfSzDejud9ocuPu3u_q7X9bxWg0LE8TYf279h-VN8_gsSICdX)
 
----
+### Implementation Highlights
+*   **Semantic Asset Matching:** We built a lightweight tag matching engine (`findBestAssetMatch`) that maps Gemini's semantic labels (e.g., "gentle breeze") to our internal asset database. It uses a 3-stage fallback system (Exact -> Partial -> Category) to ensure that even vague AI descriptions result in a relevant sound file, minimizing "silent" failures.
+*   **Gemini as a Physics Engine:** We don't just ask Gemini for text; we ask it for *vectors*. By few-shot prompting the model with our grid's coordinate system, we turned an LLM into a spatial reasoning engine.
+*   **Persistence Layer:** **Supabase** stores project metadata (preset audio asset library) and large media files (Video), while **IndexedDB** caches heavy audio buffers locally, ensuring instant playback on project reload.
+*   **Hybrid Upload Strategy:** To overcome the 4.5MB Serverless limit, we engineered a "Direct-to-Storage, Stream-to-AI" pipeline. (More details in next section`Challenges we ran into`)
+*   **The "Zombie" Canvas Fix:** We implemented a rigid state-machine lock (`isSceneReady`) to prevent race conditions between Repaints and Audio Graph initializations.  (More details in next section`Challenges we ran into`)
 
-## 🌌 Overview
+## Challenges we ran into
+1.  **The "4.5MB Wall":** Our biggest hurdle was handling high-quality user videos. Vercel's serverless functions reject large payloads ([FUNCTION_PAYLOAD_TOO_LARGE](https://vercel.com/docs/errors/FUNCTION_PAYLOAD_TOO_LARGE)). We engineered a solution where the client uploads directly to a secure Supabase bucket, and the server agent "polls" this bucket to hand off the URL to Gemini, bypassing the limitation entirely. 
+2.  **Prompt Engineering Coordinates:** Getting an LLM to "hear" in 3D is hard. We had to teach the AI not just *what* to place, but *where*. This "Spatial System Prompt" was critical for the AI to understand the user's head position and ears as the origin (0,0,0) and map video depth to our coordinate system, ensuring sounds like "footsteps behind you" were actually placed at `-Z`.
+3.  **Bridging the Semantic Gap:** Gemini is creative; our asset library is finite. The AI would often request specific sounds like "vintage 1980s car engine" that we didn't have. We had to build a fuzzy-logic matching engine that could degrade gracefully from specific requests to available categories (e.g., "vintage car" -> "car" -> "Urban Category") to ensure the scene was always populated, even if imperfectly.
+4.  **The "Zombie" Canvas:** We faced a critical race condition where navigating between projects caused the 3D logic to initialize before the data was ready, leading to "ghost" sources that existed in memory but not on screen. We fixed this by implementing a rigid state-machine lock (`isSceneReady`) that gates data injection until the Three.js graph is fully hydrated.
 
-**Resolab** is a next-generation spatial audio DAW (Digital Audio Workstation) that moves beyond traditional 2D stereo mixing. Instead of manually dragging faders and panning knobs, you interact with sound semantically.
+## Accomplishments that we're proud of
+*   **Environmental Acoustics (Reverb):** We didn't just want "dry" sounds. We implemented a convolution reverb engine using Impulse Responses (IR). When the AI detects a "Cave" or "Hall", it doesn't just change a metadata tag—it swaps the Web Audio `convolverNode` buffer to physically model the acoustic reflections of that space, grounding the generated sounds in reality.
+*   **It actually "sees" depth:** Watching the Auto-Foley agent accurately place a "footstep" sound *further away* when a character walks into the distance, and attach a trajectory to it based on the video frame's POV, was a "magic moment."
+*   **First Browser-Based DAW with AI Integration:** We built a tool that brings native desktop-grade spatial audio authoring to the web foundary, powered by multimodal AI understanding.
+*   **Real-time Logic:** The system feels alive. You type, and seconds later, a scene appears.
 
-Powered by **Google's Gemini 3**, Resolab understands scene descriptions ("cyberpunk market in rain") and video context, automatically instantiating and placing audio sources in a 3D environment with realistic HRTF (Head-Related Transfer Function) spatialization.
+## What we learned
+*   **Vibe Coding vs. Spec-Driven Development:** We learned that "Vibe Coding" is excellent for sprinting to validate ideas quickly, but adopting **Spec-Driven Development** is the way forward for true AI-native engineering. It is the difference between running a sprint and a marathon—essential for long-term robustness.
+*   **Multimodal is Spatial:** LLMs aren't just for text/images. Gemini demonstrated a surprising grasp of 3D space when simply asked to "estimate depth" from a 2D video.
+*   **Audio on the Web is Ready:** The Web Audio API combined with React 19 is powerful enough for pro-grade tools, provided you manage the "Imperative vs Declarative" sync carefully.
+* **World's first digital AI integrated DAW** - To the best of my knowledge, Resolab is first of it's kind software that mixes audio with spatial information to create immersive soundscapes. 
 
-### Why Resolab?
-*   **Semantic Authoring**: "Make it sound like a cathedral" > tweaking reverb parameters manually.
-*   **Multimodal Design**: Drag in a video, get a spatial soundtrack.
-*   **Spatial First**: Built from the ground up for 3D audio (VR, AR, Spatial Computing).
+## What's next for Resolab
+*   **Semantic Vector Search:** While Resolab's current tag-matching system is effective, I plan to implement **Vector Embeddings** for our entire audio library. This will allow the AI to find sounds based on "vibe" and acoustic similarity (e.g., matching a "sad piano" request to a specific minor-key sample) rather than just keyword tags.
+*   **Third-Party Sound Libraries:** Currently, we rely on a limited open-source sound set. We plan to integrate with massive third-party APIs (like Freesound or Epidemic Sound) to provide users with an infinite palette of high-quality audio assets to tweak and spatialise.
+*   **World-First IAMF Export:** Resolab is building the world's first browser-based pipeline for **IAMF (Immersive Audio Model and Formats)**, the revolutionary open standard co-developed by **Google** and AOMedia. IAMF is the backbone of next-gen spatial audio on **YouTube** and **Android**. Resolab democratizes this powerful format, allowing *any* creator to generate studio-grade, Google-compatible spatial audio mixes directly from their browser, unlocking the full potential of the immersive web for everyone and for all devices including sound bars, car speakers, and mobile.
+*   **XR Engine Bridge:** One-click export of scene graphs to **Unity** and **Unreal Engine**, allowing game developers to "prompt" a level's audio and drop it directly into their game world.
+*   **Collaborative Logic:** Multiplayer sessions where a Director (AI) and a Sound Designer (Human) can co-create deeply interactive audio logic in real-time.
 
----
-
-## ⚡ The Resolab Workflow
-
-1.  **Prompt or Upload**: Start with a text prompt ("Forest at night") or upload a video clip.
-2.  **AI Generation**: The **AI Director** agents analyze the intent and generate a spatial scene graph.
-3.  **3D Editing**: Visualize audio sources as objects in a 3D space. Manipulate trails, orbits, and Doppler shifts visually.
-4.  **Export**: Render to high-fidelity WAV or spatial formats (IAMF ready).
-
----
-
-## 🧠 Feature Deep Dive
-
-### 🎬 AI Director (Gemini 3)
-
-The **AI Director** is the core intelligence of Resolab. It replaces the "empty canvas" problem with an immediate, complex scene.
-
-*   **Model**: Powered by **Gemini 3 Flash** (Primary) with automatic fallback to **Gemini 2.0 Flash Lite** for robust performance.
-*   **Judge-Friendly Config**: Includes a built-in Settings UI allowing users to bring their own API Keys or switch models dynamically without code changes.
-*   **Capabilities**:
-    *   **Scene Decomposition**: Breaks down abstract concepts ("Busy Cafe") into concrete audio assets ("Espresso Machine", "Chatter", "Dish Clatter").
-    *   **Spatial Reasoning**: Assigns logical 3D coordinates. Ambient sounds (Wind, Traffic) are placed in distant orbits, while focal sounds (Footsteps) are placed near the listener.
-    *   **Trajectory Logic**: Generates movement patterns. Birds *fly over*, cars *pass by*, rain *remains static*.
-
-**Under the Hood**:
-The Director outputs a proprietary generic Scene Graph JSON that the engine hydrates into `SourceObject` instances.
-
-```json
-{
-  "name": "Cyberpunk Market",
-  "sources": [
-    {
-      "id": "neon_hum",
-      "position": { "x": 2, "y": 3, "z": -1 },
-      "trajectory": "static"
-    },
-    {
-      "id": "hover_car",
-      "trajectory": "linear_pass",
-      "timelineStart": 2.5
-    }
-  ]
-}
-```
-
-### 🎥 Auto-Foley Agent
-
-The **Auto-Foley** agent brings video to life using Gemini's multimodal capabilities.
-
-*   **Vision Analysis**: Takes video frames (base64 encoded) and identifies visual events (e.g., "Dog barking", "Glass breaking", "Footsteps").
-*   **Temporal Synchronization**: Maps visual timestamps to audio timeline markers.
-*   **Material Detection**: Distinguishes between "Footsteps on gravel" vs "Footsteps on concrete" to select the correct texture.
-*   **Video-to-Spatial**: Places the sound source at the 2D screen position projected into 3D depth, creating an accurate soundstage for the video.
-
-### 🎧 Spatial Audio Engine
-
-Resolab runs a high-performance audio graph on top of the **Web Audio API**.
-
-*   **HRTF Rendering**: Uses `PannerNode` with `HRTF` panning model for realistic binaural output over standard headphones.
-*   **Physics-Based Audio**:
-    *   **Distance Attenuation**: Inverse distance models mimic real-world sound falloff.
-    *   **Doppler Effect**: Simulated velocity-based pitch shifting for moving objects.
-*   **Visualizers**: Real-time `AnalyserNode` integration drives the React Three Fiber mesh visualizations (pulsing spheres).
-*   **Offline Rendering**: The export pipeline uses `OfflineAudioContext` to fast-render complex scenes (including all automation and reverb) into a studio-grade 32-bit WAV file.
-
----
-
-## 🏗️ Architecture
-
-Resolab bridges a reactive UI, a 3D canvas, and a graph-based audio engine.
-
-```mermaid
-graph TB
-    subgraph "Frontend Layer"
-        UI[React 19 UI]
-        Canvas[Three.js Scene]
-        Manager[Editor State Manager]
-    end
-
-    subgraph "AI Agents"
-        Director[AI Director (Text-to-Scene)]
-        Foley[Auto-Foley (Video-to-Audio)]
-        Gemini[Gemini 3 API]
-    end
-
-    subgraph "Audio & Data"
-        Audio[Web Audio Graph]
-        Export[Offline Renderer]
-        DB[(Supabase)]
-    end
-
-    UI --> Director
-    UI --> Foley
-    Director --> Gemini
-    Foley --> Gemini
-    
-    Director -- "Scene JSON" --> Manager
-    Foley -- "Sync Map" --> Manager
-    
-    Manager --> Canvas
-    Manager --> Audio
-    
-    Canvas -. "Sync" .- Audio
-    
-    Manager -- "Persist" --> DB
-    Manager --> Export
-```
-
-### Key Components
-
-*   `SpatialAudioEditor`: The orchestrator that binds React state, Three.js meshes, and WebAudio nodes.
-*   `gemini.ts` (Server Actions): Securely handles AI model negotiation, fallback strategies (`gemini-2.0-flash-lite`), and prompt engineering.
-*   `audioExport.ts`: Handles the complex logic of baking automation curves `setValueCurveAtTime` into the final export mix.
-
----
-
-## 🛠️ Tech Stack
-
-*   **Framework**: Next.js 16 (App Router)
-*   **Language**: TypeScript
-*   **Styling**: Tailwind CSS 4
-*   **3D Engine**: Three.js / React Three Fiber
-*   **Audio**: Web Audio API (Native)
-*   **AI**: Google Gemini API (`@google/generative-ai`)
-*   **Backend**: Supabase (PostgreSQL, Auth, Storage)
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-*   Node.js 18+
-*   Supabase Account
-*   Google Gemini API Key
-
-### Installation
-
-1.  **Clone the repo**
-    ```bash
-    git clone https://github.com/CrypticMessenger/Resolab.git
-    cd resolab
-    ```
-
-2.  **Install dependencies**
-    ```bash
-    npm install
-    ```
-
-3.  **Environment Setup**
-    Create `.env.local`:
-    ```env
-    NEXT_PUBLIC_SUPABASE_URL=your_url
-    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_key
-    NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_key
-    ```
-
-4.  **Run Development Server**
-    ```bash
-    npm run dev
-    ```
-
-Open [http://localhost:3000](http://localhost:3000) to start creating.
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Please see `CONTRIBUTING.md` for details on how to submit pull requests, report issues, and request features.
-
----
-
-**Resolab** — *Hear the Future.*
