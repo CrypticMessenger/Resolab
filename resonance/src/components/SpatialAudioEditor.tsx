@@ -104,7 +104,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
     // --- Gemini Config State ---
     const [showGeminiSettings, setShowGeminiSettings] = useState(false);
-    const [geminiConfig, setGeminiConfig] = useState({ apiKey: "", modelName: "gemini-2.0-flash" });
+    const [geminiConfig, setGeminiConfig] = useState({ apiKey: "", modelName: "gemini-3-flash-preview" });
 
     useEffect(() => {
         const stored = localStorage.getItem('resolab_gemini_config');

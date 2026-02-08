@@ -133,21 +133,49 @@ export async function POST(req: Request) {
 
             await writeLog(`[AutoFoley] Generating content...`);
 
-            // 4. Generate Content
+            // 4. Generate Content with Fallback
             const genAI = createGenAI(apiKey);
-            const modelName = config?.modelName || DEFAULT_PRIMARY_MODEL;
-            const model = genAI.getGenerativeModel({ model: modelName });
+            const primaryModelName = config?.modelName || DEFAULT_PRIMARY_MODEL;
+            const fallbackModelName = "gemini-2.0-flash-lite";
 
-            const result = await model.generateContent([
-                systemPrompt,
-                {
-                    fileData: {
-                        mimeType: uploadResult.file.mimeType,
-                        fileUri: uploadResult.file.uri
-                    }
-                },
-                { text: "Analyze this video." }
-            ]);
+            let result;
+
+            try {
+                await writeLog(`[AutoFoley] Analyzing with ${primaryModelName}...`);
+                const model = genAI.getGenerativeModel({ model: primaryModelName });
+
+                result = await model.generateContent([
+                    systemPrompt,
+                    {
+                        fileData: {
+                            mimeType: uploadResult.file.mimeType,
+                            fileUri: uploadResult.file.uri
+                        }
+                    },
+                    { text: "Analyze this video." }
+                ]);
+            } catch (primaryError: any) {
+                console.warn(`Primary model (${primaryModelName}) failed: ${primaryError.message}. Switching to fallback...`);
+                await writeLog(`[AutoFoley] Primary model failed. Switching to ${fallbackModelName}...`);
+
+                try {
+                    const fallbackModel = genAI.getGenerativeModel({ model: fallbackModelName });
+                    result = await fallbackModel.generateContent([
+                        systemPrompt,
+                        {
+                            fileData: {
+                                mimeType: uploadResult.file.mimeType,
+                                fileUri: uploadResult.file.uri
+                            }
+                        },
+                        { text: "Analyze this video." }
+                    ]);
+                } catch (fallbackError: any) {
+                    console.error("FATAL: All models failed.", fallbackError);
+                    // Throw the original error if fallback also fails, or a combined message
+                    throw new Error(`Analysis failed on both models. Last error: ${fallbackError.message}`);
+                }
+            }
 
             await writeLog(`[AutoFoley] Analysis complete. Parsing...`);
             const text = result.response.text();
