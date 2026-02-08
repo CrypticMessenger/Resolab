@@ -1,3 +1,5 @@
+# Resolab: Future of Sound
+
 ## Inspiration
 The spark for **Resolab** came from a personal frustration. I tried building a VR game, but the spatial audio tools were prohibitively complex and expensive. I often create content for Instagram using free text-to-video generators, but the results always felt "soulless"—visually impressive but sonically flat. Syncing stock SFX manually was a tedious, hours-long process that drained the creativity out of the workflow.
 I realized that **Google's Gemini 3** possesses an exceptional ability to understand not just *what* is in a video, but *where* it is. It can recognize spatial and temporal information—depth, movement, and material physics—better than any previous model.
