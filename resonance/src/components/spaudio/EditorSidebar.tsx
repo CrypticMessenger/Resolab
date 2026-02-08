@@ -14,6 +14,7 @@ interface EditorSidebarProps {
     onUpdateSource: (updates: Partial<EditorState>) => void;
     onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
     onTogglePlay: () => void;
+    onToggleSourcePlay: () => void;
     onStopMotion: () => void;
     onAiGenerate: () => void;
     promptInput: string;
@@ -49,6 +50,7 @@ export default function EditorSidebar({
     onUpdateSource,
     onFileUpload,
     onTogglePlay,
+    onToggleSourcePlay,
     onStopMotion,
     onAiGenerate,
     promptInput,
@@ -157,7 +159,7 @@ export default function EditorSidebar({
                             editorState={editorState}
                             onUpdate={onUpdateSource}
                             onFileUpload={onFileUpload}
-                            onTogglePlay={onTogglePlay}
+                            onTogglePlay={onToggleSourcePlay}
                             onStopMotion={onStopMotion}
                             onAiGenerate={onAiGenerate}
                             promptInput={promptInput}

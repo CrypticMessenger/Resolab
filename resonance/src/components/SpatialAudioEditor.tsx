@@ -739,8 +739,9 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
         }
 
         updateActiveSource({ sourceType: 'file' });
-        if (audioCtxRef.current) source.play(audioCtxRef.current);
-        updateActiveSource({ isPlaying: true });
+        // Removed auto-play
+        // if (audioCtxRef.current) source.play(audioCtxRef.current);
+        // updateActiveSource({ isPlaying: true });
         syncSourceList();
 
         // 2. Upload to Supabase Storage (Global Path)
@@ -792,6 +793,28 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
             isPlayingRef.current = true;
             lastFrameTimeRef.current = Date.now();
         }
+    };
+
+    const toggleSourcePlayback = () => {
+        if (!activeSourceId) return;
+        const source = sourcesRef.current.find(s => s.id === activeSourceId);
+        if (!source) return;
+
+        if (source.isPlaying) {
+            source.stop();
+            updateActiveSource({ isPlaying: false });
+        } else {
+            // Stop global playback if running to prevent conflict
+            if (isPlayingRef.current) {
+                setIsPlaying(false);
+                isPlayingRef.current = false;
+                sourcesRef.current.forEach(s => s.stop());
+            }
+
+            if (audioCtxRef.current) source.play(audioCtxRef.current);
+            updateActiveSource({ isPlaying: true });
+        }
+        syncSourceList();
     };
 
     const handleSeek = (time: number) => {
@@ -937,9 +960,9 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
 
         updateActiveSource({ sourceType: 'file' });
 
-        // Play
-        if (audioCtxRef.current) source.play(audioCtxRef.current);
-        updateActiveSource({ isPlaying: true });
+        // Removed auto-play
+        // if (audioCtxRef.current) source.play(audioCtxRef.current);
+        // updateActiveSource({ isPlaying: true });
         syncSourceList();
     };
 
@@ -1621,6 +1644,7 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                 onUpdateSource={updateActiveSource}
                 onFileUpload={handleFileUpload}
                 onTogglePlay={togglePlay}
+                onToggleSourcePlay={toggleSourcePlayback}
                 onStopMotion={stopMotion}
                 onAiGenerate={handleAiGenerate}
                 onOpenAutoFoley={() => setShowAutoFoleyModal(true)}
