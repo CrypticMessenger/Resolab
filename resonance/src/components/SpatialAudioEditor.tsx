@@ -1286,14 +1286,16 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                 // Restore audio from URL
                 // Restore audio from URL
                 if (s.sourceType === 'file') {
-                    // Logic to restore from IndexedDB if possible
-                    if (sData.indexedDbId) {
-                        // Async restoration handled by a separate checks? 
-                        // We can't await here easily inside forEach without Promise.all
-                        // Better to trigger a floating promise/effect or just do it here carefully.
-                        // We'll mark it as loading or similar?
-                        s.indexedDbId = sData.indexedDbId;
-                        getAudioFile(s.indexedDbId!).then(record => {
+                    // 1. Synchronously restore metadata
+                    if (sData.fileUrl) s.fileUrl = sData.fileUrl;
+                    if (sData.indexedDbId) s.indexedDbId = sData.indexedDbId;
+
+                    const isGlobal = sData.indexedDbId && sData.indexedDbId.startsWith('global-');
+                    const shouldTryIdb = sData.indexedDbId && !isGlobal;
+
+                    if (shouldTryIdb) {
+                        // Local File: Try IDB
+                        getAudioFile(sData.indexedDbId!).then(record => {
                             if (record) {
                                 const url = getFileUrl(record.blob);
                                 s.fileUrl = url;
@@ -1303,27 +1305,44 @@ export default function SpatialAudioEditor({ projectId }: { projectId?: string }
                                 console.log("Restored audio from IndexedDB:", s.name);
                             } else {
                                 console.warn("Failed to find file in IndexedDB:", sData.indexedDbId);
-                                s.error = "missing";
-                                syncSourceList();
+                                // Fallback to URL if we have one (e.g. from sync restore above)
+                                restoreFromUrl(s);
                             }
                         });
-                    } else if (sData.fileUrl) {
-                        // Restore Remote URL (Global Asset)
-                        s.fileUrl = sData.fileUrl;
-                        s.audioElement.crossOrigin = "anonymous";
-                        s.audioElement.onerror = (e) => {
-                            console.error("Failed to load remote asset", s.fileUrl, e);
-                            s.error = "missing";
-                            syncSourceList();
-                        };
-                        s.audioElement.onloadeddata = () => {
-                            s.error = undefined;
-                            syncSourceList();
-                        };
-                        const separator = (s.fileUrl && s.fileUrl.includes('?')) ? '&' : '?';
-                        if (s.fileUrl) s.audioElement.src = s.fileUrl + `${separator}t=${Date.now()}`;
-                        s.audioElement.load();
+                    } else {
+                        // Global Asset or Remote URL: Load directly
+                        restoreFromUrl(s);
                     }
+                }
+
+                // Helper to load from s.fileUrl
+                function restoreFromUrl(source: SourceObject) {
+                    if (!source.fileUrl) {
+                        source.error = "missing";
+                        syncSourceList();
+                        return;
+                    }
+
+                    source.audioElement.crossOrigin = "anonymous";
+                    source.audioElement.onerror = (e) => {
+                        console.error("Failed to load asset URL", source.fileUrl, e);
+                        source.error = "missing";
+                        syncSourceList();
+                    };
+                    source.audioElement.onloadeddata = () => {
+                        source.error = undefined;
+                        syncSourceList();
+                    };
+
+                    const separator = source.fileUrl.includes('?') ? '&' : '?';
+                    // Only cache bust if NOT a blob/data URL
+                    if (!source.fileUrl.startsWith('blob:') && !source.fileUrl.startsWith('data:')) {
+                        source.audioElement.src = source.fileUrl + `${separator}t=${Date.now()}`;
+                    } else {
+                        source.audioElement.src = source.fileUrl;
+                    }
+
+                    source.audioElement.load();
                 }
 
                 // Re-init audio - this should now always work since we called initGlobalAudio
